@@ -1,4 +1,4 @@
-# @riligar/elysia-backup
+# ElysiaJS Backup Plugin
 
 Elysia plugin for R2/S3 backup with a built-in UI dashboard. Uses native Bun S3 client for optimal performance.
 
