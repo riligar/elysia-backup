@@ -14,6 +14,17 @@
   "files": [
     "src"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/riligar/elysia-backup.git"
+  },
+  "homepage": "https://github.com/riligar/elysia-backup#readme",
+  "bugs": {
+    "url": "https://github.com/riligar/elysia-backup/issues"
+  },
   "scripts": {
     "dev": "bun run demo/index.js"
   },
@@ -25,7 +36,7 @@
     "cloudflare",
     "bun"
   ],
-  "author": "",
+  "author": "RiLiGar",
   "license": "MIT",
   "peerDependencies": {
     "elysia": ">=1.0.0",
