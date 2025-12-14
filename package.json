@@ -1,0 +1,42 @@
+{
+  "name": "@riligar/elysia-backup",
+  "version": "0.1.0",
+  "description": "Elysia plugin for R2/S3 backup with a built-in UI dashboard",
+  "type": "module",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "default": "./src/index.js"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "dev": "bun run demo/index.js"
+  },
+  "keywords": [
+    "elysia",
+    "backup",
+    "r2",
+    "s3",
+    "cloudflare",
+    "bun"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "elysia": ">=1.0.0",
+    "@elysiajs/html": ">=1.0.0"
+  },
+  "dependencies": {
+    "cron": "^3.1.0"
+  },
+  "devDependencies": {
+    "@elysiajs/html": "^1.1.1",
+    "bun-types": "^1.1.34",
+    "elysia": "^1.1.26"
+  }
+}
