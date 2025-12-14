@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/riligar/elysia-backup/compare/v1.0.0...v1.1.0) (2025-12-14)
+
+
+### Features
+
+* Initialize Elysia backup demo, replacing SQLite with JSON data files and adding documentation. ([0b008a9](https://github.com/riligar/elysia-backup/commit/0b008a9ba308da3c9c52b796e91b47574e445c77))
+
 # 1.0.0 (2025-12-14)
 
 
