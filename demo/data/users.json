@@ -1,0 +1,16 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "João Silva",
+      "email": "joao@example.com",
+      "createdAt": "2025-12-14T17:47:35.248Z"
+    },
+    {
+      "id": 2,
+      "name": "Maria Santos",
+      "email": "maria@example.com",
+      "createdAt": "2025-12-14T17:47:35.249Z"
+    }
+  ]
+}
