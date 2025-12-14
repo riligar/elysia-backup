@@ -1,3 +1,11 @@
+# 1.0.0 (2025-12-14)
+
+
+### Features
+
+* add semantic-release, changelog, and git plugins to devDependencies ([05bd667](https://github.com/riligar/elysia-backup/commit/05bd667a891d6db3ca3a66d6186057542b310dbe))
+* Implement Elysia plugin for R2/S3 backup with UI, including demo and project setup. ([3e570f4](https://github.com/riligar/elysia-backup/commit/3e570f45ab556369b04967361eb67362c97ebe58))
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
