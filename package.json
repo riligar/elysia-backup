@@ -19,11 +19,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/riligar/elysia-backup.git"
+    "url": "git+https://github.com/riligar-solutions/elysia-backup.git"
   },
-  "homepage": "https://github.com/riligar/elysia-backup#readme",
+  "homepage": "https://github.com/riligar-solutions/elysia-backup#readme",
   "bugs": {
-    "url": "https://github.com/riligar/elysia-backup/issues"
+    "url": "https://github.com/riligar-solutions/elysia-backup/issues"
   },
   "scripts": {
     "dev": "bun run demo/index.js"
