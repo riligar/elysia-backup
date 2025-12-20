@@ -160,18 +160,6 @@ src/
 │       └── onboardingApp.js
 ```
 
-## 🌍 Environment Variables Example
-
-```env
-# Optional - for initial configuration
-R2_BUCKET=your-bucket-name
-R2_ACCESS_KEY_ID=your-access-key
-R2_SECRET_ACCESS_KEY=your-secret-key
-R2_ENDPOINT=https://your-account.r2.cloudflarestorage.com
-```
-
-> **Note:** All configuration can be set via the onboarding wizard. Environment variables are optional.
-
 ## 🤝 Contributing
 
 Contributions are welcome! See our [GitHub repository](https://github.com/riligar-solutions/elysia-backup) for more information.
