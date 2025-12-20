@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.7.0...v1.8.0) (2025-12-20)
+
+
+### Features
+
+* enhance scheduled backup logging, implement session expiration handling, and update demo cron schedule. ([76ec384](https://github.com/riligar-solutions/elysia-backup/commit/76ec3845b29eabf3288bb404975b7b7d55f45e06))
+
 # [1.7.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.6.0...v1.7.0) (2025-12-20)
 
 
