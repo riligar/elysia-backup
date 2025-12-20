@@ -20,21 +20,8 @@ const write = (file, data) => writeFileSync(file, JSON.stringify(data, null, 2))
 const app = new Elysia()
     .use(
         r2Backup({
-            bucket: process.env.R2_BUCKET || 'demo-bucket',
-            accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
-            secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
-            endpoint: process.env.R2_ENDPOINT || 'https://example.r2.cloudflarestorage.com',
             sourceDir: './data',
-            prefix: 'backups/',
-            extensions: ['.json'],
-            cronSchedule: '0 * * * *',
-            cronEnabled: false,
-            // Authentication - provide username and password to enable auth
-            auth: {
-                username: process.env.BACKUP_USERNAME,
-                password: process.env.BACKUP_PASSWORD,
-                totpSecret: process.env.BACKUP_TOTP_SECRET, // Optional: base32 secret for 2FA
-            },
+            configPath: './config.json',
         })
     )
     .get(

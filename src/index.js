@@ -14,6 +14,7 @@ import { html } from '@elysiajs/html'
 // Import page components
 import { LoginPage } from './views/LoginPage.js'
 import { DashboardPage } from './views/DashboardPage.js'
+import { OnboardingPage } from './views/OnboardingPage.js'
 
 // Session Management
 const sessions = new Map()
@@ -92,6 +93,19 @@ export const r2Backup = initialConfig => app => {
 
     let config = { ...initialConfig, ...savedConfig }
     let backupJob = null
+
+    // Helper to check if config.json exists and has required fields
+    const hasValidConfig = () => {
+        if (!existsSync(configPath)) return false
+        try {
+            const content = readFileSync(configPath, 'utf-8')
+            const parsed = JSON.parse(content)
+            // Check minimum required fields for system to work
+            return !!(parsed.bucket && parsed.endpoint && parsed.accessKeyId && parsed.secretAccessKey && parsed.auth?.username && parsed.auth?.password)
+        } catch {
+            return false
+        }
+    }
 
     const getS3Client = () => {
         console.log('S3 Config:', {
@@ -275,14 +289,27 @@ export const r2Backup = initialConfig => app => {
     return app.use(html()).group('/backup', app => {
         // Authentication Middleware
         const authMiddleware = context => {
+            // Skip auth entirely if no valid config (needs onboarding)
+            if (!hasValidConfig()) {
+                return
+            }
+
             if (!config.auth || !config.auth.username || !config.auth.password) {
                 return
             }
 
             const path = context.path
 
-            // Skip auth for login, logout, and static assets
-            if (path === '/backup/login' || path === '/backup/auth/login' || path === '/backup/auth/logout' || path === '/backup/favicon.ico' || path === '/backup/logo.png') {
+            // Skip auth for login, logout, onboarding, and static assets
+            if (
+                path === '/backup/login' ||
+                path === '/backup/auth/login' ||
+                path === '/backup/auth/logout' ||
+                path === '/backup/onboarding' ||
+                path === '/backup/api/onboarding' ||
+                path === '/backup/favicon.ico' ||
+                path === '/backup/logo.png'
+            ) {
                 return
             }
 
@@ -620,8 +647,95 @@ export const r2Backup = initialConfig => app => {
                     })
                 })
 
+                // ONBOARDING: Setup Page
+                .get('/onboarding', ({ set }) => {
+                    // If already configured, redirect to dashboard
+                    if (hasValidConfig()) {
+                        set.status = 302
+                        set.headers['Location'] = '/backup'
+                        return
+                    }
+                    return OnboardingPage({ sourceDir: config.sourceDir })
+                })
+
+                // ONBOARDING: Save Initial Config
+                .post(
+                    '/api/onboarding',
+                    async ({ body, set }) => {
+                        // Don't allow if already configured
+                        if (hasValidConfig()) {
+                            set.status = 403
+                            return { status: 'error', message: 'System is already configured' }
+                        }
+
+                        const { endpoint, bucket, prefix, accessKeyId, secretAccessKey, extensions, cronSchedule, cronEnabled, username, password } = body
+
+                        // Parse extensions
+                        let parsedExtensions = []
+                        if (extensions) {
+                            parsedExtensions = extensions
+                                .split(',')
+                                .map(e => e.trim())
+                                .filter(Boolean)
+                        }
+
+                        // Build initial config
+                        const initialConfigData = {
+                            endpoint,
+                            bucket,
+                            prefix: prefix || '',
+                            accessKeyId,
+                            secretAccessKey,
+                            extensions: parsedExtensions,
+                            cronSchedule: cronSchedule || '0 0 * * *',
+                            cronEnabled: cronEnabled !== false,
+                            auth: {
+                                username,
+                                password,
+                            },
+                        }
+
+                        try {
+                            await writeFile(configPath, JSON.stringify(initialConfigData, null, 2))
+
+                            // Update runtime config
+                            config = { ...config, ...initialConfigData }
+
+                            // Setup cron if enabled
+                            setupCron()
+
+                            return { status: 'success', message: 'Configuration saved successfully' }
+                        } catch (e) {
+                            console.error('Failed to save onboarding config:', e)
+                            set.status = 500
+                            return { status: 'error', message: 'Failed to save configuration' }
+                        }
+                    },
+                    {
+                        body: t.Object({
+                            endpoint: t.String(),
+                            bucket: t.String(),
+                            prefix: t.Optional(t.String()),
+                            accessKeyId: t.String(),
+                            secretAccessKey: t.String(),
+                            extensions: t.Optional(t.String()),
+                            cronSchedule: t.Optional(t.String()),
+                            cronEnabled: t.Optional(t.Boolean()),
+                            username: t.String(),
+                            password: t.String(),
+                        }),
+                    }
+                )
+
                 // UI: Dashboard
-                .get('/', () => {
+                .get('/', ({ set }) => {
+                    // Redirect to onboarding if no valid config
+                    if (!hasValidConfig()) {
+                        set.status = 302
+                        set.headers['Location'] = '/backup/onboarding'
+                        return
+                    }
+
                     const jobStatus = getJobStatus()
                     const hasAuth = !!(config.auth && config.auth.username && config.auth.password)
                     return DashboardPage({ config, jobStatus, hasAuth })
