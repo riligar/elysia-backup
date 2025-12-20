@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/riligar/elysia-backup/compare/v1.1.0...v1.2.0) (2025-12-20)
+
+
+### Features
+
+* Add authentication and session management with login/logout UI to the backup plugin, including new environment variables for credentials. ([55c41d7](https://github.com/riligar/elysia-backup/commit/55c41d767176280d45bbcb3fa7914e2fd62ab677))
+
 # [1.1.0](https://github.com/riligar/elysia-backup/compare/v1.0.0...v1.1.0) (2025-12-14)
 
 
