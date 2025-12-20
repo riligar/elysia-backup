@@ -1,0 +1,18 @@
+{
+  "bucket": "demo-bucket",
+  "accessKeyId": "135b46a7ebe62a798198865c64eee178",
+  "secretAccessKey": "3ae633898d81a7aeb0ce1179a92095ab836bb3a60f601cdd43d4e2b6b6152646",
+  "endpoint": "https://fb81cb0efe496349aa882e65d6704c6f.r2.cloudflarestorage.com",
+  "sourceDir": "./data",
+  "prefix": "backups/",
+  "extensions": [
+    ".json"
+  ],
+  "cronSchedule": "0 * * * *",
+  "cronEnabled": false,
+  "auth": {
+    "username": "admin",
+    "password": "admin123",
+    "totpSecret": "DQMRAQL6ANCSI2BJ"
+  }
+}

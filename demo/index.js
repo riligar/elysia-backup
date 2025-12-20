@@ -33,6 +33,7 @@ const app = new Elysia()
             auth: {
                 username: process.env.BACKUP_USERNAME,
                 password: process.env.BACKUP_PASSWORD,
+                totpSecret: process.env.BACKUP_TOTP_SECRET, // Optional: base32 secret for 2FA
             },
         })
     )

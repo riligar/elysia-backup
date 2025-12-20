@@ -45,18 +45,18 @@ console.log('Backup UI at http://localhost:3000/backup')
 
 ## Configuration
 
-| Option            | Type     | Required | Description                                                   |
-| ----------------- | -------- | -------- | ------------------------------------------------------------- |
-| `bucket`          | string   | ✅       | R2/S3 bucket name                                             |
-| `accessKeyId`     | string   | ✅       | R2/S3 Access Key ID                                           |
-| `secretAccessKey` | string   | ✅       | R2/S3 Secret Access Key                                       |
-| `endpoint`        | string   | ✅       | R2/S3 Endpoint URL                                            |
-| `sourceDir`       | string   | ✅       | Local directory to backup                                     |
-| `prefix`          | string   | ❌       | Prefix for S3 keys (e.g., 'backups/')                         |
-| `extensions`      | string[] | ❌       | File extensions to include                                    |
-| `cronSchedule`    | string   | ❌       | Cron expression for scheduled backups                         |
-| `cronEnabled`     | boolean  | ❌       | Enable/disable scheduled backups                              |
-| `configPath`      | string   | ❌       | Path to save runtime config (default: './backup-config.json') |
+| Option            | Type     | Required | Description                                            |
+| ----------------- | -------- | -------- | ------------------------------------------------------ |
+| `bucket`          | string   | ✅       | R2/S3 bucket name                                      |
+| `accessKeyId`     | string   | ✅       | R2/S3 Access Key ID                                    |
+| `secretAccessKey` | string   | ✅       | R2/S3 Secret Access Key                                |
+| `endpoint`        | string   | ✅       | R2/S3 Endpoint URL                                     |
+| `sourceDir`       | string   | ✅       | Local directory to backup                              |
+| `prefix`          | string   | ❌       | Prefix for S3 keys (e.g., 'backups/')                  |
+| `extensions`      | string[] | ❌       | File extensions to include                             |
+| `cronSchedule`    | string   | ❌       | Cron expression for scheduled backups                  |
+| `cronEnabled`     | boolean  | ❌       | Enable/disable scheduled backups                       |
+| `configPath`      | string   | ❌       | Path to save runtime config (default: './config.json') |
 
 ## API Endpoints
 

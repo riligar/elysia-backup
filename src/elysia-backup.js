@@ -3,6 +3,8 @@
 import { Elysia, t } from 'elysia'
 import { S3Client } from 'bun'
 import { CronJob } from 'cron'
+import { authenticator } from 'otplib'
+import QRCode from 'qrcode'
 import { readdir, stat, readFile, writeFile, mkdir } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { existsSync } from 'node:fs'
@@ -66,11 +68,11 @@ const deleteSession = token => {
  * @param {string} [config.prefix] - Optional prefix for S3 keys (e.g. 'backups/')
  * @param {string} [config.cronSchedule] - Cron schedule expression
  * @param {boolean} [config.cronEnabled] - Whether the cron schedule is enabled
- * @param {string} [config.configPath] - Path to save runtime configuration (default: './backup-config.json')
+ * @param {string} [config.configPath] - Path to save runtime configuration (default: './config.json')
  */
 export const r2Backup = initialConfig => app => {
     // State to hold runtime configuration (allows UI updates)
-    const configPath = initialConfig.configPath || './backup-config.json'
+    const configPath = initialConfig.configPath || './config.json'
 
     // Load saved config if exists
     let savedConfig = {}
@@ -430,6 +432,30 @@ export const r2Backup = initialConfig => app => {
                         </div>
                     </div>
 
+                    <!-- TOTP Code (only shown when TOTP is enabled) -->
+                    <div x-show="totpEnabled" x-cloak>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Authenticator Code</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <i data-lucide="smartphone" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                            <input 
+                                type="text" 
+                                x-model="totpCode"
+                                inputmode="numeric"
+                                pattern="[0-9]*"
+                                maxlength="6"
+                                :required="totpEnabled"
+                                class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-12 pr-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium tracking-widest text-center text-lg"
+                                placeholder="000000"
+                            >
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                            <i data-lucide="info" class="w-3 h-3"></i>
+                            Enter the 6-digit code from your authenticator app
+                        </p>
+                    </div>
+
                     <!-- Submit Button -->
                     <button 
                         type="submit"
@@ -461,6 +487,8 @@ export const r2Backup = initialConfig => app => {
             Alpine.data('loginApp', () => ({
                 username: '',
                 password: '',
+                totpCode: '',
+                totpEnabled: ${config.auth?.totpSecret ? 'true' : 'false'},
                 loading: false,
                 error: '',
 
@@ -473,13 +501,19 @@ export const r2Backup = initialConfig => app => {
                     this.error = '';
 
                     try {
+                        const payload = {
+                            username: this.username,
+                            password: this.password
+                        };
+                        
+                        if (this.totpEnabled && this.totpCode) {
+                            payload.totpCode = this.totpCode;
+                        }
+
                         const response = await fetch('/backup/auth/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                username: this.username,
-                                password: this.password
-                            })
+                            body: JSON.stringify(payload)
                         });
 
                         const data = await response.json();
@@ -520,10 +554,24 @@ export const r2Backup = initialConfig => app => {
                             }
                         }
 
-                        const { username, password } = body
+                        const { username, password, totpCode } = body
 
                         // Validate credentials
                         if (username === config.auth.username && password === config.auth.password) {
+                            // Validate TOTP if configured
+                            if (config.auth.totpSecret) {
+                                if (!totpCode) {
+                                    set.status = 401
+                                    return { status: 'error', message: 'Authenticator code is required' }
+                                }
+
+                                const isValidTotp = authenticator.check(totpCode, config.auth.totpSecret)
+                                if (!isValidTotp) {
+                                    set.status = 401
+                                    return { status: 'error', message: 'Invalid authenticator code' }
+                                }
+                            }
+
                             // Create session
                             const sessionDuration = config.auth.sessionDuration || 24 * 60 * 60 * 1000 // 24h default
                             const { token, expiresAt } = createSession(username, sessionDuration)
@@ -542,6 +590,7 @@ export const r2Backup = initialConfig => app => {
                         body: t.Object({
                             username: t.String(),
                             password: t.String(),
+                            totpCode: t.Optional(t.String()),
                         }),
                     }
                 )
@@ -561,6 +610,105 @@ export const r2Backup = initialConfig => app => {
 
                     return { status: 'success', message: 'Logged out successfully' }
                 })
+
+                // TOTP: Get Status
+                .get('/api/totp/status', () => {
+                    return {
+                        enabled: !!config.auth?.totpSecret,
+                    }
+                })
+
+                // TOTP: Generate new secret and QR code
+                .post('/api/totp/generate', async () => {
+                    const secret = authenticator.generateSecret()
+                    const serviceName = config.serviceName || 'Backup Manager'
+                    const accountName = config.auth?.username || 'admin'
+
+                    const otpauth = authenticator.keyuri(accountName, serviceName, secret)
+                    const qrCodeDataUrl = await QRCode.toDataURL(otpauth)
+
+                    return {
+                        status: 'success',
+                        secret,
+                        qrCode: qrCodeDataUrl,
+                        otpauth,
+                    }
+                })
+
+                // TOTP: Verify and save
+                .post(
+                    '/api/totp/verify',
+                    async ({ body, set }) => {
+                        const { secret, code } = body
+
+                        // Verify the code is valid
+                        const isValid = authenticator.check(code, secret)
+
+                        if (!isValid) {
+                            set.status = 400
+                            return { status: 'error', message: 'Invalid code. Please try again.' }
+                        }
+
+                        // Save the secret to config
+                        config.auth = config.auth || {}
+                        config.auth.totpSecret = secret
+
+                        // Persist config
+                        try {
+                            await writeFile(configPath, JSON.stringify(config, null, 2))
+                        } catch (e) {
+                            console.error('Failed to save TOTP config:', e)
+                            set.status = 500
+                            return { status: 'error', message: 'Failed to save configuration' }
+                        }
+
+                        return { status: 'success', message: 'Two-factor authentication enabled successfully' }
+                    },
+                    {
+                        body: t.Object({
+                            secret: t.String(),
+                            code: t.String(),
+                        }),
+                    }
+                )
+
+                // TOTP: Disable
+                .post(
+                    '/api/totp/disable',
+                    async ({ body, set }) => {
+                        const { code } = body
+
+                        // Require valid TOTP code to disable
+                        if (config.auth?.totpSecret) {
+                            const isValid = authenticator.check(code, config.auth.totpSecret)
+                            if (!isValid) {
+                                set.status = 400
+                                return { status: 'error', message: 'Invalid code. Please enter your current authenticator code.' }
+                            }
+                        }
+
+                        // Remove TOTP secret from config
+                        if (config.auth) {
+                            delete config.auth.totpSecret
+                        }
+
+                        // Persist config
+                        try {
+                            await writeFile(configPath, JSON.stringify(config, null, 2))
+                        } catch (e) {
+                            console.error('Failed to save config:', e)
+                            set.status = 500
+                            return { status: 'error', message: 'Failed to save configuration' }
+                        }
+
+                        return { status: 'success', message: 'Two-factor authentication disabled' }
+                    },
+                    {
+                        body: t.Object({
+                            code: t.String(),
+                        }),
+                    }
+                )
 
                 // API: Run Backup
                 .post(
@@ -777,7 +925,7 @@ export const r2Backup = initialConfig => app => {
             </div>
 
             ${
-                config.auth && config.auth.enabled
+                config.auth && config.auth.username && config.auth.password
                     ? `
             <!-- Logout Button -->
             <button @click="logout" class="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-sm rounded-lg transition-all">
@@ -1085,6 +1233,168 @@ export const r2Backup = initialConfig => app => {
                     </div>
                 </form>
             </div>
+
+            <!-- Security Section -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-10 mt-8">
+                <h2 class="text-xl font-bold text-gray-900 mb-8 flex items-center gap-2">
+                    <i data-lucide="shield" class="w-5 h-5"></i>
+                    Security
+                </h2>
+                
+                <!-- TOTP Setup -->
+                <div class="space-y-6">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <h3 class="font-semibold text-gray-900 flex items-center gap-2">
+                                <i data-lucide="smartphone" class="w-4 h-4"></i>
+                                Two-Factor Authentication (2FA)
+                            </h3>
+                            <p class="text-sm text-gray-500 mt-1">
+                                Add an extra layer of security using an authenticator app
+                            </p>
+                        </div>
+                        <div x-show="!totpEnabled && !showTotpSetup">
+                            <button 
+                                @click="generateTotp()"
+                                class="bg-gray-900 hover:bg-gray-800 text-white font-bold py-2.5 px-5 rounded-lg transition-all flex items-center gap-2"
+                            >
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                Enable 2FA
+                            </button>
+                        </div>
+                        <div x-show="totpEnabled && !showTotpSetup">
+                            <span class="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-lg font-semibold text-sm">
+                                <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                Enabled
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- TOTP Setup Flow -->
+                    <div x-show="showTotpSetup" x-cloak class="border-t border-gray-100 pt-6 mt-6">
+                        <!-- Loading -->
+                        <div x-show="totpLoading" class="text-center py-8">
+                            <i data-lucide="loader-2" class="w-8 h-8 animate-spin text-gray-400 mx-auto"></i>
+                            <p class="text-sm text-gray-500 mt-2">Generating secure key...</p>
+                        </div>
+
+                        <!-- QR Code Display -->
+                        <div x-show="!totpLoading && totpQrCode" class="space-y-6">
+                            <div class="bg-gray-50 rounded-xl p-6 text-center">
+                                <p class="text-sm font-medium text-gray-700 mb-4">
+                                    Scan this QR code with your authenticator app:
+                                </p>
+                                <img :src="totpQrCode" alt="TOTP QR Code" class="mx-auto w-48 h-48 rounded-lg shadow-sm">
+                                
+                                <div class="mt-4 text-xs text-gray-500">
+                                    <p class="mb-2">Or enter this code manually:</p>
+                                    <code class="bg-white px-3 py-1.5 rounded border border-gray-200 font-mono text-gray-800 select-all" x-text="totpSecret"></code>
+                                </div>
+                            </div>
+
+                            <!-- Verification -->
+                            <div class="space-y-4">
+                                <label class="block text-sm font-semibold text-gray-700">
+                                    Enter the 6-digit code from your authenticator app:
+                                </label>
+                                <div class="flex gap-4">
+                                    <input 
+                                        type="text" 
+                                        x-model="totpVerifyCode"
+                                        inputmode="numeric"
+                                        pattern="[0-9]*"
+                                        maxlength="6"
+                                        placeholder="000000"
+                                        class="flex-grow bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium tracking-widest text-center text-lg"
+                                    >
+                                    <button 
+                                        @click="verifyTotp()"
+                                        :disabled="totpVerifyCode.length !== 6 || totpVerifying"
+                                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <template x-if="!totpVerifying">
+                                            <span class="flex items-center gap-2">
+                                                <i data-lucide="check" class="w-4 h-4"></i>
+                                                Verify & Enable
+                                            </span>
+                                        </template>
+                                        <template x-if="totpVerifying">
+                                            <span class="flex items-center gap-2">
+                                                <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                                                Verifying...
+                                            </span>
+                                        </template>
+                                    </button>
+                                </div>
+                                <div x-show="totpError" x-cloak class="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800 flex items-center gap-2">
+                                    <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                                    <span x-text="totpError"></span>
+                                </div>
+                                <button 
+                                    @click="cancelTotpSetup()"
+                                    class="text-sm text-gray-500 hover:text-gray-700 underline"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Disable 2FA -->
+                    <div x-show="totpEnabled && !showTotpSetup" x-cloak class="border-t border-gray-100 pt-6 mt-6">
+                        <div x-show="!showDisableTotp">
+                            <button 
+                                @click="showDisableTotp = true"
+                                class="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-2"
+                            >
+                                <i data-lucide="shield-off" class="w-4 h-4"></i>
+                                Disable two-factor authentication
+                            </button>
+                        </div>
+                        <div x-show="showDisableTotp" class="space-y-4">
+                            <p class="text-sm text-gray-600">
+                                Enter your current authenticator code to disable 2FA:
+                            </p>
+                            <div class="flex gap-4">
+                                <input 
+                                    type="text" 
+                                    x-model="totpDisableCode"
+                                    inputmode="numeric"
+                                    pattern="[0-9]*"
+                                    maxlength="6"
+                                    placeholder="000000"
+                                    class="flex-grow bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium tracking-widest text-center text-lg"
+                                >
+                                <button 
+                                    @click="disableTotp()"
+                                    :disabled="totpDisableCode.length !== 6 || totpDisabling"
+                                    class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <template x-if="!totpDisabling">
+                                        <span>Disable 2FA</span>
+                                    </template>
+                                    <template x-if="totpDisabling">
+                                        <span class="flex items-center gap-2">
+                                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                                            Disabling...
+                                        </span>
+                                    </template>
+                                </button>
+                            </div>
+                            <div x-show="totpError" x-cloak class="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800 flex items-center gap-2">
+                                <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                                <span x-text="totpError"></span>
+                            </div>
+                            <button 
+                                @click="showDisableTotp = false; totpDisableCode = ''; totpError = ''"
+                                class="text-sm text-gray-500 hover:text-gray-700 underline"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <script>
@@ -1126,12 +1436,122 @@ export const r2Backup = initialConfig => app => {
                 config: ${JSON.stringify(config)},
                 cronStatus: ${JSON.stringify(jobStatus)},
                 configForm: { ...${JSON.stringify(config)} },
+                
+                // TOTP State
+                totpEnabled: ${!!config.auth?.totpSecret},
+                showTotpSetup: false,
+                showDisableTotp: false,
+                totpLoading: false,
+                totpVerifying: false,
+                totpDisabling: false,
+                totpSecret: '',
+                totpQrCode: '',
+                totpVerifyCode: '',
+                totpDisableCode: '',
+                totpError: '',
 
                 init() {
                     // Initial load if needed
                     this.$nextTick(() => {
                         lucide.createIcons()
                     })
+                },
+                
+                // TOTP Methods
+                async generateTotp() {
+                    this.showTotpSetup = true;
+                    this.totpLoading = true;
+                    this.totpError = '';
+                    this.$nextTick(() => lucide.createIcons());
+                    
+                    try {
+                        const response = await fetch('/backup/api/totp/generate', { method: 'POST' });
+                        const data = await response.json();
+                        
+                        if (data.status === 'success') {
+                            this.totpSecret = data.secret;
+                            this.totpQrCode = data.qrCode;
+                        } else {
+                            this.totpError = data.message || 'Failed to generate TOTP';
+                        }
+                    } catch (err) {
+                        this.totpError = 'Connection failed. Please try again.';
+                    } finally {
+                        this.totpLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+                
+                async verifyTotp() {
+                    this.totpVerifying = true;
+                    this.totpError = '';
+                    
+                    try {
+                        const response = await fetch('/backup/api/totp/verify', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                secret: this.totpSecret,
+                                code: this.totpVerifyCode
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.status === 'success') {
+                            this.totpEnabled = true;
+                            this.showTotpSetup = false;
+                            this.totpSecret = '';
+                            this.totpQrCode = '';
+                            this.totpVerifyCode = '';
+                            this.addLog('Two-factor authentication enabled', 'success');
+                        } else {
+                            this.totpError = data.message || 'Verification failed';
+                        }
+                    } catch (err) {
+                        this.totpError = 'Connection failed. Please try again.';
+                    } finally {
+                        this.totpVerifying = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+                
+                cancelTotpSetup() {
+                    this.showTotpSetup = false;
+                    this.totpSecret = '';
+                    this.totpQrCode = '';
+                    this.totpVerifyCode = '';
+                    this.totpError = '';
+                    this.$nextTick(() => lucide.createIcons());
+                },
+                
+                async disableTotp() {
+                    this.totpDisabling = true;
+                    this.totpError = '';
+                    
+                    try {
+                        const response = await fetch('/backup/api/totp/disable', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ code: this.totpDisableCode })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.status === 'success') {
+                            this.totpEnabled = false;
+                            this.showDisableTotp = false;
+                            this.totpDisableCode = '';
+                            this.addLog('Two-factor authentication disabled', 'info');
+                        } else {
+                            this.totpError = data.message || 'Failed to disable 2FA';
+                        }
+                    } catch (err) {
+                        this.totpError = 'Connection failed. Please try again.';
+                    } finally {
+                        this.totpDisabling = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
                 },
 
                 addLog(message, type = 'info') {

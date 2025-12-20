@@ -46,7 +46,9 @@
     "@elysiajs/html": ">=1.0.0"
   },
   "dependencies": {
-    "cron": "^3.5.0"
+    "cron": "^3.5.0",
+    "otplib": "^12.0.1",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@elysiajs/html": "^1.4.0",
