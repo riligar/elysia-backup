@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.4.0...v1.5.0) (2025-12-20)
+
+
+### Features
+
+* introduce primary color palette and update branding across UI components. ([b6409cd](https://github.com/riligar-solutions/elysia-backup/commit/b6409cdb0da3113c2fa17de7d3d1d612f88edcc0))
+
 # [1.4.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.3.0...v1.4.0) (2025-12-20)
 
 
