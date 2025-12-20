@@ -5,7 +5,7 @@ import { authenticator } from 'otplib'
 import QRCode from 'qrcode'
 import { writeFile } from 'node:fs/promises'
 import { readFileSync, existsSync } from 'node:fs'
-import { html, Html } from '@elysiajs/html'
+import { html } from '@elysiajs/html'
 
 // Import core modules
 import { createSessionManager } from './core/session.js'
@@ -76,7 +76,7 @@ export const r2Backup = initialConfig => app => {
     // Setup initial cron schedule
     scheduler.setup(config.cronSchedule, config.cronEnabled !== false)
 
-    return app.use(html()).group('/backup', app => {
+    return app.use(html({ autoDoctype: 'full' })).group('/backup', app => {
         // Authentication Middleware
         const authMiddleware = context => {
             // Skip auth entirely if no valid config (needs onboarding)
@@ -138,7 +138,7 @@ export const r2Backup = initialConfig => app => {
                         return
                     }
 
-                    return Html(LoginPage({ totpEnabled: !!config.auth?.totpSecret }))
+                    return LoginPage({ totpEnabled: !!config.auth?.totpSecret })
                 })
 
                 // AUTH: Login Endpoint
@@ -452,7 +452,7 @@ export const r2Backup = initialConfig => app => {
                         set.headers['Location'] = '/backup'
                         return
                     }
-                    return Html(OnboardingPage({ sourceDir: config.sourceDir }))
+                    return OnboardingPage({ sourceDir: config.sourceDir })
                 })
 
                 // ONBOARDING: Save Initial Config
@@ -535,7 +535,7 @@ export const r2Backup = initialConfig => app => {
 
                     const jobStatus = scheduler.getStatus(config.cronEnabled)
                     const hasAuth = !!(config.auth && config.auth.username && config.auth.password)
-                    return Html(DashboardPage({ config, jobStatus, hasAuth }))
+                    return DashboardPage({ config, jobStatus, hasAuth })
                 })
         )
     })
