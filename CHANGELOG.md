@@ -1,3 +1,12 @@
+# [1.7.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.6.0...v1.7.0) (2025-12-20)
+
+
+### Features
+
+* Add a new footer component and update README to detail onboarding, authentication, and runtime configuration features. ([db8d95b](https://github.com/riligar-solutions/elysia-backup/commit/db8d95b3c9009e619bb7d7cc6d0161ce5ade568f))
+* integrate footer component into dashboard, login, and onboarding pages, and update README documentation ([23ec7dc](https://github.com/riligar-solutions/elysia-backup/commit/23ec7dc715cb2174008dbf986329f887551ae8ab))
+* Rework backup file path to include date folders, add session expiration handling, and update config. ([3d74482](https://github.com/riligar-solutions/elysia-backup/commit/3d74482784dd00fe0b39a964922c3051a0653ff0))
+
 # [1.6.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.5.0...v1.6.0) (2025-12-20)
 
 
