@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/riligar/elysia-backup/compare/v1.2.0...v1.3.0) (2025-12-20)
+
+
+### Features
+
+* implement authentication with TOTP support and update configuration ([fd3d3be](https://github.com/riligar/elysia-backup/commit/fd3d3be9bb2b85a9aea0248ec1503dd8ad8064f7))
+
 # [1.2.0](https://github.com/riligar/elysia-backup/compare/v1.1.0...v1.2.0) (2025-12-20)
 
 
