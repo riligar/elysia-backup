@@ -10,14 +10,6 @@ import { S3Client } from 'bun'
  * @returns {S3Client} Configured S3 client
  */
 export const createS3Client = config => {
-    // Debug config (masked for security)
-    console.log('S3 Config:', {
-        bucket: config.bucket,
-        endpoint: config.endpoint,
-        accessKeyId: config.accessKeyId ? '***' + config.accessKeyId.slice(-4) : 'missing',
-        hasSecret: !!config.secretAccessKey,
-    })
-
     return new S3Client({
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,

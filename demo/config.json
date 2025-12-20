@@ -9,7 +9,7 @@
   "extensions": [
     ".json"
   ],
-  "cronSchedule": "* * * * *",
+  "cronSchedule": "5 * * * *",
   "cronEnabled": true,
   "auth": {
     "username": "admin",

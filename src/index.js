@@ -1,65 +1,24 @@
 // https://bun.com/docs/runtime/s3
 // https://elysiajs.com/plugins/html
 import { Elysia, t } from 'elysia'
-import { S3Client } from 'bun'
-import { CronJob } from 'cron'
 import { authenticator } from 'otplib'
 import QRCode from 'qrcode'
-import { readdir, stat, readFile, writeFile, mkdir } from 'node:fs/promises'
-import { readFileSync } from 'node:fs'
-import { existsSync } from 'node:fs'
-import { join, relative, dirname } from 'node:path'
+import { writeFile } from 'node:fs/promises'
+import { readFileSync, existsSync } from 'node:fs'
 import { html } from '@elysiajs/html'
+
+// Import core modules
+import { createSessionManager } from './core/session.js'
+import { createScheduler } from './core/scheduler.js'
+import { createBackupService } from './services/backup.service.js'
 
 // Import page components
 import { LoginPage } from './views/LoginPage.js'
 import { DashboardPage } from './views/DashboardPage.js'
 import { OnboardingPage } from './views/OnboardingPage.js'
 
-// Session Management
-const sessions = new Map()
-
-/**
- * Generate a secure random session token
- */
-const generateSessionToken = () => {
-    const array = new Uint8Array(32)
-    crypto.getRandomValues(array)
-    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
-}
-
-/**
- * Create a new session for a user
- */
-const createSession = (username, sessionDuration = 24 * 60 * 60 * 1000) => {
-    const token = generateSessionToken()
-    const expiresAt = Date.now() + sessionDuration
-    sessions.set(token, { username, expiresAt })
-    return { token, expiresAt }
-}
-
-/**
- * Validate and return session data
- */
-const getSession = token => {
-    if (!token) return null
-    const session = sessions.get(token)
-    if (!session) return null
-    if (Date.now() > session.expiresAt) {
-        sessions.delete(token)
-        return null
-    }
-    return session
-}
-
-/**
- * Delete a session
- */
-const deleteSession = token => {
-    if (token) {
-        sessions.delete(token)
-    }
-}
+// Create session manager instance
+const sessionManager = createSessionManager()
 
 /**
  * Elysia Plugin for R2/S3 Backup with UI (using native Bun.s3)
@@ -92,7 +51,6 @@ export const r2Backup = initialConfig => app => {
     }
 
     let config = { ...initialConfig, ...savedConfig }
-    let backupJob = null
 
     // Helper to check if config.json exists and has required fields
     const hasValidConfig = () => {
@@ -107,214 +65,16 @@ export const r2Backup = initialConfig => app => {
         }
     }
 
-    const getS3Client = () => {
-        console.log('S3 Config:', {
-            bucket: config.bucket,
-            endpoint: config.endpoint,
-            accessKeyId: config.accessKeyId ? '***' + config.accessKeyId.slice(-4) : 'missing',
-            hasSecret: !!config.secretAccessKey,
-        })
+    // Create backup service with config getter
+    const backupService = createBackupService(() => config)
 
-        return new S3Client({
-            accessKeyId: config.accessKeyId,
-            secretAccessKey: config.secretAccessKey,
-            endpoint: config.endpoint,
-            bucket: config.bucket,
-            region: 'auto',
-        })
-    }
+    // Create scheduler with backup callback
+    const scheduler = createScheduler(async timestamp => {
+        await backupService.processDirectory(config.sourceDir, timestamp)
+    })
 
-    const uploadFile = async (filePath, rootDir, timestampPrefix) => {
-        const s3 = getS3Client()
-        const fileContent = await readFile(filePath)
-
-        const relativePath = relative(rootDir, filePath)
-        const dir = dirname(relativePath)
-        const filename = relativePath.split('/').pop()
-
-        // Parse timestamp to extract date and time parts
-        // Expected format: YYYY-MM-DD_HH-mm-ss
-        const timestamp = timestampPrefix || new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-        const datePart = timestamp.slice(0, 10) // YYYY-MM-DD
-        const timePart = timestamp.slice(11) || '00-00-00' // HH-mm-ss
-
-        // Format: YYYY-MM-DD/HH-mm-ss_filename.ext
-        const newFilename = `${timePart}_${filename}`
-        const dateFolder = datePart
-
-        // Reconstruct path: prefix/date/[subdir/]time_filename
-        let finalPath
-        if (dir === '.') {
-            finalPath = join(dateFolder, newFilename)
-        } else {
-            finalPath = join(dateFolder, dir, newFilename)
-        }
-        const key = config.prefix ? join(config.prefix, finalPath) : finalPath
-
-        console.log(`Uploading ${key}...`)
-        await s3.write(key, fileContent)
-    }
-
-    const processDirectory = async (dir, timestampPrefix) => {
-        const files = await readdir(dir)
-        for (const file of files) {
-            const fullPath = join(dir, file)
-            const stats = await stat(fullPath)
-            if (stats.isDirectory()) {
-                await processDirectory(fullPath, timestampPrefix)
-            } else {
-                const allowedExtensions = config.extensions || []
-                const hasExtension = allowedExtensions.some(ext => file.endsWith(ext))
-
-                const timestampRegex = /^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)_/
-                if (timestampRegex.test(file)) {
-                    console.log(`Skipping backup-like file: ${file}`)
-                    continue
-                }
-
-                if (allowedExtensions.length === 0 || hasExtension) {
-                    await uploadFile(fullPath, config.sourceDir, timestampPrefix)
-                }
-            }
-        }
-    }
-
-    const setupCron = () => {
-        if (backupJob) {
-            backupJob.stop()
-            backupJob = null
-        }
-
-        if (config.cronSchedule && config.cronEnabled !== false) {
-            console.log(`Setting up backup cron: ${config.cronSchedule}`)
-            try {
-                backupJob = new CronJob(
-                    config.cronSchedule,
-                    async () => {
-                        try {
-                            const now = new Date()
-                            const timestamp =
-                                now.getFullYear() +
-                                '-' +
-                                String(now.getMonth() + 1).padStart(2, '0') +
-                                '-' +
-                                String(now.getDate()).padStart(2, '0') +
-                                '_' +
-                                String(now.getHours()).padStart(2, '0') +
-                                '-' +
-                                String(now.getMinutes()).padStart(2, '0') +
-                                '-' +
-                                String(now.getSeconds()).padStart(2, '0')
-
-                            await processDirectory(config.sourceDir, timestamp)
-                            console.log('Scheduled backup completed')
-                        } catch (e) {
-                            console.error('Scheduled backup failed:', e)
-                        }
-                    },
-                    null,
-                    true
-                )
-            } catch (e) {
-                console.error('Invalid cron schedule:', e.message)
-            }
-        }
-    }
-
-    setupCron()
-
-    const listRemoteFiles = async () => {
-        const s3 = getS3Client()
-        try {
-            const response = await s3.list({ prefix: config.prefix || '' })
-            if (Array.isArray(response)) {
-                return response.map(f => ({
-                    Key: f.key || f.name,
-                    Size: f.size,
-                    LastModified: f.lastModified,
-                }))
-            }
-            if (response.contents) {
-                return response.contents.map(f => ({
-                    Key: f.key,
-                    Size: f.size,
-                    LastModified: f.lastModified,
-                }))
-            }
-            console.log('Unknown list response structure:', response)
-            return []
-        } catch (e) {
-            console.error('Error listing files with Bun.s3:', e)
-            return []
-        }
-    }
-
-    const restoreFile = async key => {
-        const s3 = getS3Client()
-        const file = s3.file(key)
-
-        if (!(await file.exists())) {
-            throw new Error(`File ${key} not found in bucket`)
-        }
-
-        const arrayBuffer = await file.arrayBuffer()
-        const byteArray = new Uint8Array(arrayBuffer)
-
-        // Remove prefix from key to get relative path
-        const relativePath = config.prefix ? key.replace(config.prefix, '') : key
-        const cleanRelative = relativePath.replace(/^[\/\\]/, '')
-
-        // New structure: YYYY-MM-DD/[subdir/]HH-mm-ss_filename.ext
-        // Old structure: YYYY-MM-DD_HH-mm-ss_filename.ext or timestamp_filename.ext
-        const pathParts = cleanRelative.split('/')
-        const filename = pathParts.pop()
-
-        // Check if first part is a date folder (YYYY-MM-DD)
-        const dateFolderRegex = /^\d{4}-\d{2}-\d{2}$/
-        let subdir = ''
-
-        if (pathParts.length > 0 && dateFolderRegex.test(pathParts[0])) {
-            // New format: remove date folder, keep remaining subdirs
-            pathParts.shift() // Remove date folder
-            subdir = pathParts.join('/')
-        } else {
-            // Old format: use dir as-is
-            subdir = pathParts.join('/')
-        }
-
-        // Strip time prefix from filename (HH-mm-ss_filename or old YYYY-MM-DD_HH-mm-ss_filename)
-        const timeOnlyRegex = /^\d{2}-\d{2}-\d{2}_/
-        const fullTimestampRegex = /^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)_/
-        let originalFilename = filename.replace(timeOnlyRegex, '').replace(fullTimestampRegex, '')
-
-        const finalLocalRelativePath = subdir ? join(subdir, originalFilename) : originalFilename
-        const localPath = join(config.sourceDir, finalLocalRelativePath)
-
-        await mkdir(dirname(localPath), { recursive: true })
-        await writeFile(localPath, byteArray)
-        return localPath
-    }
-
-    const deleteFile = async key => {
-        const s3 = getS3Client()
-        await s3.delete(key)
-    }
-
-    const getJobStatus = () => {
-        const isRunning = !!backupJob && config.cronEnabled !== false
-        let nextRun = null
-        if (isRunning && backupJob) {
-            try {
-                const nextDate = backupJob.nextDate()
-                if (nextDate) {
-                    nextRun = nextDate.toJSDate().toISOString()
-                }
-            } catch (e) {
-                console.error('Error getting next date', e)
-            }
-        }
-        return { isRunning, nextRun }
-    }
+    // Setup initial cron schedule
+    scheduler.setup(config.cronSchedule, config.cronEnabled !== false)
 
     return app.use(html()).group('/backup', app => {
         // Authentication Middleware
@@ -347,7 +107,7 @@ export const r2Backup = initialConfig => app => {
             const sessionMatch = cookies.match(/backup-session=([^;]+)/)
             const sessionToken = sessionMatch ? sessionMatch[1] : null
 
-            const session = getSession(sessionToken)
+            const session = sessionManager.get(sessionToken)
 
             if (!session) {
                 // Return JSON error for API routes
@@ -410,7 +170,7 @@ export const r2Backup = initialConfig => app => {
                             }
 
                             const sessionDuration = config.auth.sessionDuration || 24 * 60 * 60 * 1000
-                            const { token, expiresAt } = createSession(username, sessionDuration)
+                            const { token, expiresAt } = sessionManager.create(username, sessionDuration)
 
                             const expiresDate = new Date(expiresAt)
                             set.headers['Set-Cookie'] = `backup-session=${token}; Path=/backup; HttpOnly; SameSite=Lax; Expires=${expiresDate.toUTCString()}`
@@ -437,7 +197,7 @@ export const r2Backup = initialConfig => app => {
                     const sessionToken = sessionMatch ? sessionMatch[1] : null
 
                     if (sessionToken) {
-                        deleteSession(sessionToken)
+                        sessionManager.delete(sessionToken)
                     }
 
                     set.headers['Set-Cookie'] = `backup-session=; Path=/backup; HttpOnly; SameSite=Lax; Max-Age=0`
@@ -545,7 +305,7 @@ export const r2Backup = initialConfig => app => {
                         try {
                             const { timestamp } = body || {}
                             console.log(`Starting backup of ${config.sourceDir} to ${config.bucket} with timestamp ${timestamp}`)
-                            await processDirectory(config.sourceDir, timestamp)
+                            await backupService.processDirectory(config.sourceDir, timestamp)
                             return {
                                 status: 'success',
                                 message: 'Backup completed successfully',
@@ -569,7 +329,7 @@ export const r2Backup = initialConfig => app => {
                 // API: List Files
                 .get('/api/files', async ({ set }) => {
                     try {
-                        const files = await listRemoteFiles()
+                        const files = await backupService.listRemoteFiles()
                         return {
                             files: files.map(f => ({
                                 key: f.Key,
@@ -590,7 +350,7 @@ export const r2Backup = initialConfig => app => {
                         try {
                             const { key } = body
                             if (!key) throw new Error('Key is required')
-                            const localPath = await restoreFile(key)
+                            const localPath = await backupService.restoreFile(key)
                             return { status: 'success', message: `Restored to ${localPath}` }
                         } catch (error) {
                             set.status = 500
@@ -611,7 +371,7 @@ export const r2Backup = initialConfig => app => {
                         try {
                             const { key } = body
                             if (!key) throw new Error('Key is required')
-                            await deleteFile(key)
+                            await backupService.deleteFile(key)
                             return { status: 'success', message: `Deleted ${key}` }
                         } catch (error) {
                             set.status = 500
@@ -644,11 +404,11 @@ export const r2Backup = initialConfig => app => {
                             console.error('Failed to save config:', e)
                         }
 
-                        setupCron()
+                        scheduler.setup(config.cronSchedule, config.cronEnabled)
                         return {
                             status: 'success',
                             config: { ...config, secretAccessKey: '***' },
-                            jobStatus: getJobStatus(),
+                            jobStatus: scheduler.getStatus(config.cronEnabled),
                         }
                     },
                     {
@@ -739,7 +499,7 @@ export const r2Backup = initialConfig => app => {
                             config = { ...config, ...initialConfigData }
 
                             // Setup cron if enabled
-                            setupCron()
+                            scheduler.setup(config.cronSchedule, config.cronEnabled)
 
                             return { status: 'success', message: 'Configuration saved successfully' }
                         } catch (e) {
@@ -773,7 +533,7 @@ export const r2Backup = initialConfig => app => {
                         return
                     }
 
-                    const jobStatus = getJobStatus()
+                    const jobStatus = scheduler.getStatus(config.cronEnabled)
                     const hasAuth = !!(config.auth && config.auth.username && config.auth.password)
                     return DashboardPage({ config, jobStatus, hasAuth })
                 })
