@@ -5,7 +5,7 @@ import { authenticator } from 'otplib'
 import QRCode from 'qrcode'
 import { writeFile } from 'node:fs/promises'
 import { readFileSync, existsSync } from 'node:fs'
-import { html } from '@elysiajs/html'
+import { html, Html } from '@elysiajs/html'
 
 // Import core modules
 import { createSessionManager } from './core/session.js'
@@ -138,7 +138,7 @@ export const r2Backup = initialConfig => app => {
                         return
                     }
 
-                    return LoginPage({ totpEnabled: !!config.auth?.totpSecret })
+                    return Html(LoginPage({ totpEnabled: !!config.auth?.totpSecret }))
                 })
 
                 // AUTH: Login Endpoint
@@ -452,7 +452,7 @@ export const r2Backup = initialConfig => app => {
                         set.headers['Location'] = '/backup'
                         return
                     }
-                    return OnboardingPage({ sourceDir: config.sourceDir })
+                    return Html(OnboardingPage({ sourceDir: config.sourceDir }))
                 })
 
                 // ONBOARDING: Save Initial Config
@@ -535,7 +535,7 @@ export const r2Backup = initialConfig => app => {
 
                     const jobStatus = scheduler.getStatus(config.cronEnabled)
                     const hasAuth = !!(config.auth && config.auth.username && config.auth.password)
-                    return DashboardPage({ config, jobStatus, hasAuth })
+                    return Html(DashboardPage({ config, jobStatus, hasAuth }))
                 })
         )
     })
