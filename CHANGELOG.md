@@ -1,3 +1,10 @@
+## [1.8.1](https://github.com/riligar-solutions/elysia-backup/compare/v1.8.0...v1.8.1) (2025-12-20)
+
+
+### Bug Fixes
+
+* wrap HTML page responses with Html() to ensure proper Content-Type header for HTML rendering ([e037ead](https://github.com/riligar-solutions/elysia-backup/commit/e037eadb0b8ee7e21b5c613c8258b2d83c49a899))
+
 # [1.8.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.7.0...v1.8.0) (2025-12-20)
 
 
