@@ -172,16 +172,6 @@ R2_ENDPOINT=https://your-account.r2.cloudflarestorage.com
 
 > **Note:** All configuration can be set via the onboarding wizard. Environment variables are optional.
 
-## 📸 Screenshots
-
-The dashboard provides:
-
--   **Status Overview** — Cron status, next run time, bucket info
--   **Quick Actions** — Manual backup trigger with real-time feedback
--   **Files Browser** — View, restore, and delete backup files
--   **Settings** — Update storage and backup configuration
--   **Security** — Enable/disable 2FA
-
 ## 🤝 Contributing
 
 Contributions are welcome! See our [GitHub repository](https://github.com/riligar-solutions/elysia-backup) for more information.
@@ -189,8 +179,6 @@ Contributions are welcome! See our [GitHub repository](https://github.com/riliga
 ## 📄 License
 
 MIT © [RiLiGar](https://riligar.click/)
-
----
 
 <p align="center">
   Made with ❤️ by <a href="https://riligar.click/">RiLiGar</a>
