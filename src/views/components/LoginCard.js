@@ -9,9 +9,7 @@ export const LoginCard = ({ totpEnabled }) => `
         <div class="bg-white rounded-2xl border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.08)] overflow-hidden">
             <!-- Header -->
             <div class="p-10 text-center border-b border-gray-100">
-                <div class="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i data-lucide="shield-check" class="w-8 h-8 text-white"></i>
-                </div>
+                <img src="/backup/logo.png" alt="Backup Manager" class="w-20 h-20 mx-auto mb-4 rounded-xl">
                 <h1 class="text-2xl font-bold text-gray-900 mb-2">Backup Manager</h1>
                 <p class="text-sm text-gray-500">Access Control Panel</p>
             </div>
@@ -38,7 +36,7 @@ export const LoginCard = ({ totpEnabled }) => `
                                 type="text" 
                                 x-model="username"
                                 required
-                                class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-12 pr-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium"
+                                class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-12 pr-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-medium"
                                 placeholder="Enter your username"
                                 autofocus
                             >
@@ -56,7 +54,7 @@ export const LoginCard = ({ totpEnabled }) => `
                                 type="password" 
                                 x-model="password"
                                 required
-                                class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-12 pr-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium"
+                                class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-12 pr-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-medium"
                                 placeholder="Enter your password"
                             >
                         </div>
@@ -76,7 +74,7 @@ export const LoginCard = ({ totpEnabled }) => `
                                 pattern="[0-9]*"
                                 maxlength="6"
                                 :required="totpEnabled"
-                                class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-12 pr-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium tracking-widest text-center text-lg"
+                                class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-12 pr-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-medium tracking-widest text-center text-lg"
                                 placeholder="000000"
                             >
                         </div>
@@ -90,7 +88,7 @@ export const LoginCard = ({ totpEnabled }) => `
                     <button 
                         type="submit"
                         :disabled="loading"
-                        class="w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
+                        class="w-full bg-primary-500 hover:bg-primary-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
                     >
                         <span x-show="!loading" class="flex items-center gap-2">
                             <span>Sign In</span>

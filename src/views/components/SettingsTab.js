@@ -12,16 +12,16 @@ export const SettingsTab = () => `
             <div class="space-y-6">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Endpoint URL</label>
-                    <input type="text" x-model="configForm.endpoint" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium">
+                    <input type="text" x-model="configForm.endpoint" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-medium">
                 </div>
                 <div class="grid grid-cols-2 gap-6">
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Bucket Name</label>
-                        <input type="text" x-model="configForm.bucket" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium">
+                        <input type="text" x-model="configForm.bucket" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-medium">
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Prefix (Folder)</label>
-                        <input type="text" x-model="configForm.prefix" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium">
+                        <input type="text" x-model="configForm.prefix" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-medium">
                     </div>
                 </div>
                 <div>
@@ -31,13 +31,13 @@ export const SettingsTab = () => `
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Allowed Extensions (comma separated)</label>
-                    <input type="text" x-model="configForm.extensions" placeholder=".db, .sqlite" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium">
+                    <input type="text" x-model="configForm.extensions" placeholder=".db, .sqlite" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-medium">
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Cron Schedule</label>
                     <div class="flex gap-4 items-center">
                         <div class="relative flex-grow">
-                            <input type="text" x-model="configForm.cronSchedule" placeholder="0 0 * * *" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium">
+                            <input type="text" x-model="configForm.cronSchedule" placeholder="0 0 * * *" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-medium">
                             <div class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
                                 <a href="https://crontab.guru/" target="_blank" class="underline hover:text-gray-800">Help</a>
                             </div>
@@ -68,17 +68,17 @@ export const SettingsTab = () => `
                 <div class="grid grid-cols-2 gap-6">
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Access Key ID</label>
-                        <input type="text" x-model="configForm.accessKeyId" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium">
+                        <input type="text" x-model="configForm.accessKeyId" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-medium">
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Secret Access Key</label>
-                        <input type="password" x-model="configForm.secretAccessKey" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium">
+                        <input type="password" x-model="configForm.secretAccessKey" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-medium">
                     </div>
                 </div>
             </div>
             
             <div class="pt-4 flex justify-end">
-                <button type="submit" class="bg-gray-900 hover:bg-gray-800 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2">
+                <button type="submit" class="bg-primary-500 hover:bg-primary-600 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2">
                     <i data-lucide="save" class="w-4 h-4"></i>
                     Save Changes
                 </button>

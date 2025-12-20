@@ -8,6 +8,7 @@ export const Head = ({ title = 'Backup Manager' }) => `
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${title}</title>
+    <link rel="icon" type="image/x-icon" href="/backup/favicon.ico">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -17,6 +18,18 @@ export const Head = ({ title = 'Backup Manager' }) => `
                         sans: ['Montserrat', 'sans-serif'],
                     },
                     colors: {
+                        primary: {
+                            50: '#E8F4FD',
+                            100: '#C5E3FA',
+                            200: '#9DD0F6',
+                            300: '#6DB9F1',
+                            400: '#47A7ED',
+                            500: '#209CEE',
+                            600: '#1A8AD8',
+                            700: '#1574B8',
+                            800: '#115E95',
+                            900: '#0C4A77',
+                        },
                         gray: {
                             50: '#F9FAFB',
                             100: '#F3F4F6',

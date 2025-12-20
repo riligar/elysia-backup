@@ -281,7 +281,8 @@ export const r2Backup = initialConfig => app => {
 
             const path = context.path
 
-            if (path === '/backup/login' || path === '/backup/auth/login' || path === '/backup/auth/logout') {
+            // Skip auth for login, logout, and static assets
+            if (path === '/backup/login' || path === '/backup/auth/login' || path === '/backup/auth/logout' || path === '/backup/favicon.ico' || path === '/backup/logo.png') {
                 return
             }
 
@@ -600,6 +601,24 @@ export const r2Backup = initialConfig => app => {
                         }),
                     }
                 )
+
+                // Static Assets: Favicon
+                .get('/favicon.ico', () => {
+                    const faviconPath = new URL('./assets/favicon.ico', import.meta.url).pathname
+                    const content = readFileSync(faviconPath)
+                    return new Response(content, {
+                        headers: { 'Content-Type': 'image/x-icon', 'Cache-Control': 'public, max-age=86400' },
+                    })
+                })
+
+                // Static Assets: Logo
+                .get('/logo.png', () => {
+                    const logoPath = new URL('./assets/logo.png', import.meta.url).pathname
+                    const content = readFileSync(logoPath)
+                    return new Response(content, {
+                        headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' },
+                    })
+                })
 
                 // UI: Dashboard
                 .get('/', () => {

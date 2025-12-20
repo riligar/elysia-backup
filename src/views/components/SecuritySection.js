@@ -24,7 +24,7 @@ export const SecuritySection = () => `
                 <div x-show="!totpEnabled && !showTotpSetup">
                     <button 
                         @click="generateTotp()"
-                        class="bg-gray-900 hover:bg-gray-800 text-white font-bold py-2.5 px-5 rounded-lg transition-all flex items-center gap-2"
+                        class="bg-primary-500 hover:bg-primary-600 text-white font-bold py-2.5 px-5 rounded-lg transition-all flex items-center gap-2"
                     >
                         <i data-lucide="plus" class="w-4 h-4"></i>
                         Enable 2FA
@@ -73,7 +73,7 @@ export const SecuritySection = () => `
                                 pattern="[0-9]*"
                                 maxlength="6"
                                 placeholder="000000"
-                                class="flex-grow bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium tracking-widest text-center text-lg"
+                                class="flex-grow bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-medium tracking-widest text-center text-lg"
                             >
                             <button 
                                 @click="verifyTotp()"
@@ -131,7 +131,7 @@ export const SecuritySection = () => `
                             pattern="[0-9]*"
                             maxlength="6"
                             placeholder="000000"
-                            class="flex-grow bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium tracking-widest text-center text-lg"
+                            class="flex-grow bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all font-medium tracking-widest text-center text-lg"
                         >
                         <button 
                             @click="disableTotp()"

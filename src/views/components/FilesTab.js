@@ -57,10 +57,10 @@ export const FilesTab = () => `
                                             x-data="holdButton(() => restoreFile(file.key))"
                                             @mousedown="start()" @touchstart.prevent="start()"
                                             @mouseup="stop()" @mouseleave="stop()" @touchend="stop()"
-                                            class="relative overflow-hidden px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors select-none"
+                                            class="relative overflow-hidden px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors select-none"
                                             title="Hold 3s to Restore"
                                         >
-                                            <div class="absolute inset-0 bg-blue-200/50 origin-left transition-all duration-0 ease-linear" :style="'width: ' + progress + '%'"></div>
+                                            <div class="absolute inset-0 bg-primary-200/50 origin-left transition-all duration-0 ease-linear" :style="'width: ' + progress + '%'"></div>
                                             <span class="relative z-10 flex items-center gap-2">
                                                 <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
                                                 <span x-text="progress > 0 ? 'Hold...' : 'Restore'"></span>

@@ -14,7 +14,7 @@ export const ActionArea = () => `
             <button 
                 @click="runBackup()" 
                 :disabled="loading"
-                class="group relative inline-flex items-center justify-center px-8 py-3.5 text-base font-semibold text-white transition-all duration-200 bg-gray-900 rounded-xl hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-70 disabled:cursor-not-allowed">
+                class="group relative inline-flex items-center justify-center px-8 py-3.5 text-base font-semibold text-white transition-all duration-200 bg-primary-500 rounded-xl hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-70 disabled:cursor-not-allowed">
                 <span x-show="!loading" class="flex items-center gap-2">
                     <i data-lucide="play-circle" class="w-5 h-5"></i>
                     Start Backup Process
