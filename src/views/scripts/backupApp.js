@@ -285,6 +285,14 @@ export const backupAppScript = ({ config, jobStatus }) => `
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ key })
                         })
+                        
+                        // Handle session expiration
+                        if (res.status === 401) {
+                            this.addLog('Session expired. Redirecting to login...', 'error')
+                            setTimeout(() => window.location.href = '/backup/login', 1500)
+                            return
+                        }
+                        
                         const data = await res.json()
                         if (data.status === 'success') {
                             this.addLog(data.message, 'success')
@@ -303,6 +311,14 @@ export const backupAppScript = ({ config, jobStatus }) => `
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ key })
                         })
+                        
+                        // Handle session expiration
+                        if (res.status === 401) {
+                            this.addLog('Session expired. Redirecting to login...', 'error')
+                            setTimeout(() => window.location.href = '/backup/login', 1500)
+                            return
+                        }
+                        
                         const data = await res.json()
                         if (data.status === 'success') {
                             this.addLog(data.message, 'success')
@@ -322,12 +338,22 @@ export const backupAppScript = ({ config, jobStatus }) => `
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(this.configForm)
                         })
+                        
+                        // Handle session expiration
+                        if (res.status === 401) {
+                            this.addLog('Session expired. Redirecting to login...', 'error')
+                            setTimeout(() => window.location.href = '/backup/login', 1500)
+                            return
+                        }
+                        
                         const data = await res.json()
                         if (data.status === 'success') {
                             this.config = data.config
                             if (data.jobStatus) this.cronStatus = data.jobStatus
                             this.addLog('Configuration updated', 'success')
                             this.activeTab = 'dashboard'
+                        } else {
+                            throw new Error(data.message || 'Failed to save config')
                         }
                     } catch (err) {
                         this.addLog('Failed to save config: ' + err.message, 'error')

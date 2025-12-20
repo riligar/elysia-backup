@@ -31,27 +31,29 @@ export const createScheduler = onBackup => {
                 backupJob = new CronJob(
                     cronSchedule,
                     async () => {
-                        console.log('Running scheduled backup...')
-                        try {
-                            // Generate timestamp for the backup
-                            const now = new Date()
-                            const timestamp =
-                                now.getFullYear() +
-                                '-' +
-                                String(now.getMonth() + 1).padStart(2, '0') +
-                                '-' +
-                                String(now.getDate()).padStart(2, '0') +
-                                '_' +
-                                String(now.getHours()).padStart(2, '0') +
-                                '-' +
-                                String(now.getMinutes()).padStart(2, '0') +
-                                '-' +
-                                String(now.getSeconds()).padStart(2, '0')
+                        // Generate timestamp for the backup
+                        const now = new Date()
+                        const timestamp =
+                            now.getFullYear() +
+                            '-' +
+                            String(now.getMonth() + 1).padStart(2, '0') +
+                            '-' +
+                            String(now.getDate()).padStart(2, '0') +
+                            '_' +
+                            String(now.getHours()).padStart(2, '0') +
+                            '-' +
+                            String(now.getMinutes()).padStart(2, '0') +
+                            '-' +
+                            String(now.getSeconds()).padStart(2, '0')
 
+                        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
+                        console.log(`📦 Running scheduled backup at ${timeStr}`)
+
+                        try {
                             await onBackup(timestamp)
-                            console.log('Scheduled backup completed')
+                            console.log(`✅ Scheduled backup completed at ${timeStr}`)
                         } catch (e) {
-                            console.error('Scheduled backup failed:', e)
+                            console.error(`❌ Scheduled backup failed at ${timeStr}:`, e)
                         }
                     },
                     null,
