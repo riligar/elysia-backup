@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.8.2...v1.9.0) (2025-12-20)
+
+
+### Features
+
+* Replace `@elysiajs/html` with custom HTML response handling. ([932517a](https://github.com/riligar-solutions/elysia-backup/commit/932517a5be5bd2818de4f6a54d56926aa3f208bd))
+
 ## [1.8.2](https://github.com/riligar-solutions/elysia-backup/compare/v1.8.1...v1.8.2) (2025-12-20)
 
 

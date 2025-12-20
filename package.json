@@ -1,6 +1,6 @@
 {
   "name": "@riligar/elysia-backup",
-  "version": "1.8.2",
+  "version": "1.9.0",
   "description": "Elysia plugin for R2/S3 backup with a built-in UI dashboard",
   "type": "module",
   "main": "src/index.js",
