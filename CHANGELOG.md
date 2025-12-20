@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.3.0...v1.4.0) (2025-12-20)
+
+
+### Features
+
+* Implement initial login and dashboard UI components with associated scripts and favicon. ([f3ef816](https://github.com/riligar-solutions/elysia-backup/commit/f3ef81683c8e99c6e94c2fb11fa4133e6f2f2de1))
+
 # [1.3.0](https://github.com/riligar/elysia-backup/compare/v1.2.0...v1.3.0) (2025-12-20)
 
 
