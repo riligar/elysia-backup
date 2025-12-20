@@ -8,7 +8,7 @@
     "dev": "bun --watch run index.js"
   },
   "dependencies": {
-    "@riligar/elysia-backup": "^1.1.0",
+    "@riligar/elysia-backup": "^1.8.2",
     "elysia": "^1.4.19"
   }
 }

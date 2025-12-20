@@ -42,8 +42,7 @@
   },
   "license": "MIT",
   "peerDependencies": {
-    "elysia": ">=1.0.0",
-    "@elysiajs/html": ">=1.0.0"
+    "elysia": ">=1.0.0"
   },
   "dependencies": {
     "cron": "^3.5.0",

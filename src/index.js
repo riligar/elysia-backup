@@ -5,7 +5,11 @@ import { authenticator } from 'otplib'
 import QRCode from 'qrcode'
 import { writeFile } from 'node:fs/promises'
 import { readFileSync, existsSync } from 'node:fs'
-import { html } from '@elysiajs/html'
+// Helper to return HTML responses with proper Content-Type
+const htmlResponse = content =>
+    new Response(content, {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    })
 
 // Import core modules
 import { createSessionManager } from './core/session.js'
@@ -76,7 +80,7 @@ export const r2Backup = initialConfig => app => {
     // Setup initial cron schedule
     scheduler.setup(config.cronSchedule, config.cronEnabled !== false)
 
-    return app.use(html({ autoDoctype: 'full' })).group('/backup', app => {
+    return app.group('/backup', app => {
         // Authentication Middleware
         const authMiddleware = context => {
             // Skip auth entirely if no valid config (needs onboarding)
@@ -138,7 +142,7 @@ export const r2Backup = initialConfig => app => {
                         return
                     }
 
-                    return LoginPage({ totpEnabled: !!config.auth?.totpSecret })
+                    return htmlResponse(LoginPage({ totpEnabled: !!config.auth?.totpSecret }))
                 })
 
                 // AUTH: Login Endpoint
@@ -452,7 +456,7 @@ export const r2Backup = initialConfig => app => {
                         set.headers['Location'] = '/backup'
                         return
                     }
-                    return OnboardingPage({ sourceDir: config.sourceDir })
+                    return htmlResponse(OnboardingPage({ sourceDir: config.sourceDir }))
                 })
 
                 // ONBOARDING: Save Initial Config
@@ -535,7 +539,7 @@ export const r2Backup = initialConfig => app => {
 
                     const jobStatus = scheduler.getStatus(config.cronEnabled)
                     const hasAuth = !!(config.auth && config.auth.username && config.auth.password)
-                    return DashboardPage({ config, jobStatus, hasAuth })
+                    return htmlResponse(DashboardPage({ config, jobStatus, hasAuth }))
                 })
         )
     })
