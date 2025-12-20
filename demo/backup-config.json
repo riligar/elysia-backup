@@ -1,6 +1,6 @@
 {
   "sourceDir": "./data",
-  "configPath": "./config.json",
+  "configPath": "./backup-config.json",
   "endpoint": "https://fb81cb0efe496349aa882e65d6704c6f.r2.cloudflarestorage.com",
   "bucket": "2025-12-20",
   "prefix": "",

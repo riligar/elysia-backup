@@ -21,7 +21,7 @@ const app = new Elysia()
     .use(
         r2Backup({
             sourceDir: './data',
-            configPath: './config.json',
+            configPath: './backup-config.json',
         })
     )
     .get(

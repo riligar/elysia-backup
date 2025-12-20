@@ -32,11 +32,11 @@ const sessionManager = createSessionManager()
  * @param {string} [config.prefix] - Optional prefix for S3 keys (e.g. 'backups/')
  * @param {string} [config.cronSchedule] - Cron schedule expression
  * @param {boolean} [config.cronEnabled] - Whether the cron schedule is enabled
- * @param {string} [config.configPath] - Path to save runtime configuration (default: './config.json')
+ * @param {string} [config.configPath] - Path to save runtime configuration (default: './backup-config.json')
  */
 export const r2Backup = initialConfig => app => {
     // State to hold runtime configuration (allows UI updates)
-    const configPath = initialConfig.configPath || './config.json'
+    const configPath = initialConfig.configPath || './backup-config.json'
 
     // Load saved config if exists
     let savedConfig = {}
@@ -52,7 +52,7 @@ export const r2Backup = initialConfig => app => {
 
     let config = { ...initialConfig, ...savedConfig }
 
-    // Helper to check if config.json exists and has required fields
+    // Helper to check if backup-config.json exists and has required fields
     const hasValidConfig = () => {
         if (!existsSync(configPath)) return false
         try {

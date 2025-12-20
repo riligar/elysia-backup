@@ -43,7 +43,7 @@ export const saveConfig = async (configPath, config) => {
  * @returns {Object} Configuration manager with get/set/save methods
  */
 export const createConfigManager = initialConfig => {
-    const configPath = initialConfig.configPath || './config.json'
+    const configPath = initialConfig.configPath || './backup-config.json'
     const savedConfig = loadConfig(configPath)
 
     let config = { ...initialConfig, ...savedConfig }

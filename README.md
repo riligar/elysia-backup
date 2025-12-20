@@ -41,7 +41,7 @@ const app = new Elysia()
     .use(
         r2Backup({
             sourceDir: './data',
-            configPath: './config.json',
+            configPath: './backup-config.json',
         })
     )
     .listen(3000)
@@ -60,12 +60,12 @@ On first run, you'll be guided through an onboarding wizard to configure:
 
 ### Plugin Options
 
-| Option       | Type   | Required | Description                                            |
-| ------------ | ------ | -------- | ------------------------------------------------------ |
-| `sourceDir`  | string | ✅       | Local directory to backup                              |
-| `configPath` | string | ❌       | Path to save runtime config (default: `./config.json`) |
+| Option       | Type   | Required | Description                                                   |
+| ------------ | ------ | -------- | ------------------------------------------------------------- |
+| `sourceDir`  | string | ✅       | Local directory to backup                                     |
+| `configPath` | string | ❌       | Path to save runtime config (default: `./backup-config.json`) |
 
-### Runtime Configuration (via UI or config.json)
+### Runtime Configuration (via UI or backup-config.json)
 
 | Option            | Type     | Description                                    |
 | ----------------- | -------- | ---------------------------------------------- |
