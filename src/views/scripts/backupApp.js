@@ -201,6 +201,14 @@ export const backupAppScript = ({ config, jobStatus }) => `
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ timestamp })
                         })
+                        
+                        // Handle session expiration
+                        if (res.status === 401) {
+                            this.addLog('Session expired. Redirecting to login...', 'error')
+                            setTimeout(() => window.location.href = '/backup/login', 1500)
+                            return
+                        }
+                        
                         const data = await res.json()
                         if (data.status === 'success') {
                             this.lastBackup = new Date().toLocaleString()
@@ -220,14 +228,31 @@ export const backupAppScript = ({ config, jobStatus }) => `
                     this.loadingFiles = true
                     try {
                         const res = await fetch('/backup/api/files')
+                        
+                        // Handle session expiration
+                        if (res.status === 401) {
+                            this.addLog('Session expired. Redirecting to login...', 'error')
+                            setTimeout(() => window.location.href = '/backup/login', 1500)
+                            return
+                        }
+                        
                         const data = await res.json()
+                        
+                        // Check for error response
+                        if (data.status === 'error') {
+                            throw new Error(data.message)
+                        }
+                        
                         if (data.files) {
                             const sortedFiles = data.files.sort((a, b) => b.key.localeCompare(a.key));
                             
                             const groupsMap = {};
                             sortedFiles.forEach(file => {
-                                const match = file.key.match(/(?:^|\\/)(\\d{4}-\\d{2}-\\d{2})[_T]/);
-                                const dateKey = match ? match[1] : 'Others';
+                                // Try to extract date from folder path first (new format: YYYY-MM-DD/)
+                                // Then fall back to extracting from filename (legacy format: YYYY-MM-DD_HH-mm-ss_filename)
+                                const folderMatch = file.key.match(/(?:^|\\/)(\\d{4}-\\d{2}-\\d{2})\\//);
+                                const filenameMatch = file.key.match(/(?:^|\\/)(\\d{4}-\\d{2}-\\d{2})[_T]/);
+                                const dateKey = folderMatch ? folderMatch[1] : (filenameMatch ? filenameMatch[1] : 'Others');
                                 
                                 if (!groupsMap[dateKey]) {
                                     groupsMap[dateKey] = [];

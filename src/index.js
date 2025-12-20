@@ -132,10 +132,23 @@ export const r2Backup = initialConfig => app => {
         const dir = dirname(relativePath)
         const filename = relativePath.split('/').pop()
 
-        const timestamp = timestampPrefix || new Date().toISOString()
-        const newFilename = `${timestamp}_${filename}`
+        // Parse timestamp to extract date and time parts
+        // Expected format: YYYY-MM-DD_HH-mm-ss
+        const timestamp = timestampPrefix || new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+        const datePart = timestamp.slice(0, 10) // YYYY-MM-DD
+        const timePart = timestamp.slice(11) || '00-00-00' // HH-mm-ss
 
-        const finalPath = dir === '.' ? newFilename : join(dir, newFilename)
+        // Format: YYYY-MM-DD/HH-mm-ss_filename.ext
+        const newFilename = `${timePart}_${filename}`
+        const dateFolder = datePart
+
+        // Reconstruct path: prefix/date/[subdir/]time_filename
+        let finalPath
+        if (dir === '.') {
+            finalPath = join(dateFolder, newFilename)
+        } else {
+            finalPath = join(dateFolder, dir, newFilename)
+        }
         const key = config.prefix ? join(config.prefix, finalPath) : finalPath
 
         console.log(`Uploading ${key}...`)
@@ -248,16 +261,34 @@ export const r2Backup = initialConfig => app => {
         const arrayBuffer = await file.arrayBuffer()
         const byteArray = new Uint8Array(arrayBuffer)
 
+        // Remove prefix from key to get relative path
         const relativePath = config.prefix ? key.replace(config.prefix, '') : key
         const cleanRelative = relativePath.replace(/^[\/\\]/, '')
 
-        const dir = dirname(cleanRelative)
-        const filename = cleanRelative.split('/').pop()
+        // New structure: YYYY-MM-DD/[subdir/]HH-mm-ss_filename.ext
+        // Old structure: YYYY-MM-DD_HH-mm-ss_filename.ext or timestamp_filename.ext
+        const pathParts = cleanRelative.split('/')
+        const filename = pathParts.pop()
 
-        const timestampRegex = /^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)_/
-        const originalFilename = filename.replace(timestampRegex, '')
+        // Check if first part is a date folder (YYYY-MM-DD)
+        const dateFolderRegex = /^\d{4}-\d{2}-\d{2}$/
+        let subdir = ''
 
-        const finalLocalRelativePath = dir === '.' ? originalFilename : join(dir, originalFilename)
+        if (pathParts.length > 0 && dateFolderRegex.test(pathParts[0])) {
+            // New format: remove date folder, keep remaining subdirs
+            pathParts.shift() // Remove date folder
+            subdir = pathParts.join('/')
+        } else {
+            // Old format: use dir as-is
+            subdir = pathParts.join('/')
+        }
+
+        // Strip time prefix from filename (HH-mm-ss_filename or old YYYY-MM-DD_HH-mm-ss_filename)
+        const timeOnlyRegex = /^\d{2}-\d{2}-\d{2}_/
+        const fullTimestampRegex = /^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)_/
+        let originalFilename = filename.replace(timeOnlyRegex, '').replace(fullTimestampRegex, '')
+
+        const finalLocalRelativePath = subdir ? join(subdir, originalFilename) : originalFilename
         const localPath = join(config.sourceDir, finalLocalRelativePath)
 
         await mkdir(dirname(localPath), { recursive: true })
@@ -320,6 +351,13 @@ export const r2Backup = initialConfig => app => {
             const session = getSession(sessionToken)
 
             if (!session) {
+                // Return JSON error for API routes
+                if (path.startsWith('/backup/api/')) {
+                    context.set.status = 401
+                    return { status: 'error', message: 'Session expired. Please login again.' }
+                }
+
+                // Redirect to login for page routes
                 context.set.status = 302
                 context.set.headers['Location'] = '/backup/login'
                 return new Response('Redirecting to login', {
