@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.5.0...v1.6.0) (2025-12-20)
+
+
+### Features
+
+* add multi-step onboarding wizard for initial setup and remove static configuration files. ([0a5bbb5](https://github.com/riligar-solutions/elysia-backup/commit/0a5bbb5cdd72d8b6fb52b14a6814e60b9b3c366c))
+
 # [1.5.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.4.0...v1.5.0) (2025-12-20)
 
 
