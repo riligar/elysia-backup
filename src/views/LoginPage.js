@@ -6,6 +6,7 @@
  */
 import { Head } from './components/Head.js'
 import { LoginCard } from './components/LoginCard.js'
+import { Footer } from './components/Footer.js'
 import { loginAppScript } from './scripts/loginApp.js'
 
 export const LoginPage = ({ totpEnabled = false }) => `
@@ -14,8 +15,14 @@ export const LoginPage = ({ totpEnabled = false }) => `
 <head>
     ${Head({ title: 'Login - Backup Manager' })}
 </head>
-<body class="bg-gray-50 min-h-screen flex items-center justify-center p-6 antialiased">
-    ${LoginCard({ totpEnabled })}
+<body class="bg-gray-50 min-h-screen flex flex-col items-center justify-center p-6 antialiased">
+    <div class="flex-1 flex items-center justify-center w-full">
+        ${LoginCard({ totpEnabled })}
+    </div>
+    
+    <div class="w-full max-w-md">
+        ${Footer()}
+    </div>
 
     ${loginAppScript({ totpEnabled })}
 </body>

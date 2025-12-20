@@ -47,7 +47,6 @@ export const createBackupService = getConfig => {
         }
         const key = config.prefix ? join(config.prefix, finalPath) : finalPath
 
-        console.log(`Uploading ${key}...`)
         await s3.write(key, fileContent)
     }
 

@@ -191,7 +191,6 @@ export const r2Backup = initialConfig => app => {
                 backupJob = new CronJob(
                     config.cronSchedule,
                     async () => {
-                        console.log('Running scheduled backup...')
                         try {
                             const now = new Date()
                             const timestamp =

@@ -4,7 +4,7 @@
  * @returns {string} HTML string
  */
 export const Footer = () => `
-    <footer class="mt-12 pt-8 border-t border-gray-200 text-center">
+    <footer class="pt-4 text-center">
         <p class="text-sm text-gray-500">
             Open source project by 
             <a href="https://riligar.click/" target="_blank" rel="noopener noreferrer" 

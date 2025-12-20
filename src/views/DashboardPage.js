@@ -11,6 +11,7 @@ import { ActionArea } from './components/ActionArea.js'
 import { FilesTab } from './components/FilesTab.js'
 import { SettingsTab } from './components/SettingsTab.js'
 import { SecuritySection } from './components/SecuritySection.js'
+import { Footer } from './components/Footer.js'
 import { backupAppScript } from './scripts/backupApp.js'
 
 export const DashboardPage = ({ config, jobStatus, hasAuth }) => `
@@ -48,6 +49,9 @@ export const DashboardPage = ({ config, jobStatus, hasAuth }) => `
             ${SettingsTab()}
             ${SecuritySection()}
         </div>
+        
+        <!-- Footer -->
+        ${Footer()}
     </div>
 
     ${backupAppScript({ config, jobStatus })}
