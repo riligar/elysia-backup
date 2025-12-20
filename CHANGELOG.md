@@ -1,3 +1,10 @@
+## [1.8.2](https://github.com/riligar-solutions/elysia-backup/compare/v1.8.1...v1.8.2) (2025-12-20)
+
+
+### Bug Fixes
+
+* use autoDoctype full option to ensure proper HTML Content-Type header ([5e965dd](https://github.com/riligar-solutions/elysia-backup/commit/5e965ddfbeded07f7ebd4b2c2870e2be3a2f3974))
+
 ## [1.8.1](https://github.com/riligar-solutions/elysia-backup/compare/v1.8.0...v1.8.1) (2025-12-20)
 
 
