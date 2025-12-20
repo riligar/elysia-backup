@@ -12,8 +12,8 @@ import { join, relative, dirname } from 'node:path'
 import { html } from '@elysiajs/html'
 
 // Import page components
-import { LoginPage } from '../views/LoginPage.js'
-import { DashboardPage } from '../views/DashboardPage.js'
+import { LoginPage } from './views/LoginPage.js'
+import { DashboardPage } from './views/DashboardPage.js'
 
 // Session Management
 const sessions = new Map()
