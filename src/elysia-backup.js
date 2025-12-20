@@ -1,13 +1,58 @@
 // https://bun.com/docs/runtime/s3
 // https://elysiajs.com/plugins/html
-import { Elysia, t } from "elysia";
-import { S3Client } from "bun";
-import { CronJob } from "cron";
-import { readdir, stat, readFile, writeFile, mkdir } from "node:fs/promises";
-import { readFileSync } from "node:fs";
-import { existsSync } from "node:fs";
-import { join, relative, dirname } from "node:path";
-import { html } from "@elysiajs/html";
+import { Elysia, t } from 'elysia'
+import { S3Client } from 'bun'
+import { CronJob } from 'cron'
+import { readdir, stat, readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
+import { join, relative, dirname } from 'node:path'
+import { html } from '@elysiajs/html'
+
+// Session Management
+const sessions = new Map()
+
+/**
+ * Generate a secure random session token
+ */
+const generateSessionToken = () => {
+    const array = new Uint8Array(32)
+    crypto.getRandomValues(array)
+    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * Create a new session for a user
+ */
+const createSession = (username, sessionDuration = 24 * 60 * 60 * 1000) => {
+    const token = generateSessionToken()
+    const expiresAt = Date.now() + sessionDuration
+    sessions.set(token, { username, expiresAt })
+    return { token, expiresAt }
+}
+
+/**
+ * Validate and return session data
+ */
+const getSession = token => {
+    if (!token) return null
+    const session = sessions.get(token)
+    if (!session) return null
+    if (Date.now() > session.expiresAt) {
+        sessions.delete(token)
+        return null
+    }
+    return session
+}
+
+/**
+ * Delete a session
+ */
+const deleteSession = token => {
+    if (token) {
+        sessions.delete(token)
+    }
+}
 
 /**
  * Elysia Plugin for R2/S3 Backup with UI (using native Bun.s3)
@@ -23,385 +68,638 @@ import { html } from "@elysiajs/html";
  * @param {boolean} [config.cronEnabled] - Whether the cron schedule is enabled
  * @param {string} [config.configPath] - Path to save runtime configuration (default: './backup-config.json')
  */
-export const r2Backup = (initialConfig) => (app) => {
-  // State to hold runtime configuration (allows UI updates)
-  const configPath = initialConfig.configPath || "./backup-config.json";
+export const r2Backup = initialConfig => app => {
+    // State to hold runtime configuration (allows UI updates)
+    const configPath = initialConfig.configPath || './backup-config.json'
 
-  // Load saved config if exists
-  let savedConfig = {};
-  if (existsSync(configPath)) {
-    try {
-      // We use synchronous read here or just init with promise (but top level await is tricky in plugins depending on usage)
-      // For simplicity in this context, we'll rely on the fact that this runs once on startup.
-      // However, since we are in a function, we can't easily do async await at top level unless the plugin is async.
-      // Elysia plugins can be async.
-      // Using readFileSync for startup config loading to ensure it's ready.
-      const fileContent = readFileSync(configPath, "utf-8");
-      savedConfig = JSON.parse(fileContent);
-      console.log("Loaded backup config from", configPath);
-    } catch (e) {
-      console.error("Failed to load backup config:", e);
-    }
-  }
-
-  let config = { ...initialConfig, ...savedConfig };
-  let backupJob = null;
-
-  const getS3Client = () => {
-    // Debug config (masked)
-    console.log("S3 Config:", {
-      bucket: config.bucket,
-      endpoint: config.endpoint,
-      accessKeyId: config.accessKeyId
-        ? "***" + config.accessKeyId.slice(-4)
-        : "missing",
-      hasSecret: !!config.secretAccessKey,
-    });
-
-    return new S3Client({
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-      endpoint: config.endpoint,
-      bucket: config.bucket,
-      region: "auto",
-      // R2 requires specific region handling or defaults.
-      // Bun S3 defaults to us-east-1 which is usually fine for R2 if endpoint is correct.
-    });
-  };
-
-  const uploadFile = async (filePath, rootDir, timestampPrefix) => {
-    const s3 = getS3Client();
-    const fileContent = await readFile(filePath);
-
-    const relativePath = relative(rootDir, filePath);
-    const dir = dirname(relativePath);
-    const filename = relativePath.split("/").pop(); // or basename
-
-    // Format: YYYY-MM-DD_HH-mm-ss_filename.ext (or ISO if not provided)
-    const timestamp = timestampPrefix || new Date().toISOString();
-    const newFilename = `${timestamp}_${filename}`;
-
-    // Reconstruct path with new filename
-    const finalPath = dir === "." ? newFilename : join(dir, newFilename);
-
-    const key = config.prefix ? join(config.prefix, finalPath) : finalPath;
-
-    console.log(`Uploading ${key}...`);
-
-    // Bun.s3 API: s3.write(key, data)
-    await s3.write(key, fileContent);
-  };
-
-  const processDirectory = async (dir, timestampPrefix) => {
-    const files = await readdir(dir);
-    for (const file of files) {
-      const fullPath = join(dir, file);
-      const stats = await stat(fullPath);
-      if (stats.isDirectory()) {
-        await processDirectory(fullPath, timestampPrefix);
-      } else {
-        // Filter by extension
-        const allowedExtensions = config.extensions || [];
-        const hasExtension = allowedExtensions.some((ext) =>
-          file.endsWith(ext)
-        );
-
-        // Skip files that look like backups to prevent recursion/duplication
-        // Matches: YYYY-MM-DD_HH-mm-ss_ OR ISOString_
-        const timestampRegex =
-          /^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)_/;
-        if (timestampRegex.test(file)) {
-          console.log(`Skipping backup-like file: ${file}`);
-          continue;
-        }
-
-        if (allowedExtensions.length === 0 || hasExtension) {
-          await uploadFile(fullPath, config.sourceDir, timestampPrefix);
-        }
-      }
-    }
-  };
-
-  const setupCron = () => {
-    if (backupJob) {
-      backupJob.stop();
-      backupJob = null;
-    }
-
-    if (config.cronSchedule && config.cronEnabled !== false) {
-      console.log(`Setting up backup cron: ${config.cronSchedule}`);
-      try {
-        backupJob = new CronJob(
-          config.cronSchedule,
-          async () => {
-            console.log("Running scheduled backup...");
-            try {
-              // Generate timestamp similar to manual run
-              const now = new Date();
-              const timestamp =
-                now.getFullYear() +
-                "-" +
-                String(now.getMonth() + 1).padStart(2, "0") +
-                "-" +
-                String(now.getDate()).padStart(2, "0") +
-                "_" +
-                String(now.getHours()).padStart(2, "0") +
-                "-" +
-                String(now.getMinutes()).padStart(2, "0") +
-                "-" +
-                String(now.getSeconds()).padStart(2, "0");
-
-              await processDirectory(config.sourceDir, timestamp);
-              console.log("Scheduled backup completed");
-            } catch (e) {
-              console.error("Scheduled backup failed:", e);
-            }
-          },
-          null,
-          true // start
-        );
-      } catch (e) {
-        console.error("Invalid cron schedule:", e.message);
-      }
-    }
-  };
-
-  // Initialize cron
-  setupCron();
-
-  const listRemoteFiles = async () => {
-    const s3 = getS3Client();
-    // Bun.s3 list API
-    // Returns a Promise that resolves to the list of files (or object with contents)
-    // Based on Bun docs/behavior, list() returns an array of S3File-like objects or similar structure
-    try {
-      const response = await s3.list({ prefix: config.prefix || "" });
-      // If response is array
-      if (Array.isArray(response)) {
-        return response.map((f) => ({
-          Key: f.key || f.name, // Handle potential property names
-          Size: f.size,
-          LastModified: f.lastModified,
-        }));
-      }
-      // If response has contents (AWS-like)
-      if (response.contents) {
-        return response.contents.map((f) => ({
-          Key: f.key,
-          Size: f.size,
-          LastModified: f.lastModified,
-        }));
-      }
-      console.log("Unknown list response structure:", response);
-      return [];
-    } catch (e) {
-      console.error("Error listing files with Bun.s3:", e);
-      return [];
-    }
-  };
-
-  const restoreFile = async (key) => {
-    const s3 = getS3Client();
-    const file = s3.file(key);
-
-    if (!(await file.exists())) {
-      throw new Error(`File ${key} not found in bucket`);
-    }
-
-    const arrayBuffer = await file.arrayBuffer();
-    const byteArray = new Uint8Array(arrayBuffer);
-
-    // Determine local path
-    // Remove prefix from key to get relative path
-    const relativePath = config.prefix ? key.replace(config.prefix, "") : key;
-    // Clean leading slashes if any
-    const cleanRelative = relativePath.replace(/^[\/\\]/, "");
-
-    // Extract directory and filename
-    const dir = dirname(cleanRelative);
-    const filename = cleanRelative.split("/").pop();
-
-    // Strip timestamp prefix if present to restore original filename
-    // Matches: YYYY-MM-DD_HH-mm-ss_ OR ISOString_
-    const timestampRegex =
-      /^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)_/;
-    const originalFilename = filename.replace(timestampRegex, "");
-
-    const finalLocalRelativePath =
-      dir === "." ? originalFilename : join(dir, originalFilename);
-    const localPath = join(config.sourceDir, finalLocalRelativePath);
-
-    // Ensure directory exists
-    await mkdir(dirname(localPath), { recursive: true });
-    await writeFile(localPath, byteArray);
-    return localPath;
-  };
-
-  const deleteFile = async (key) => {
-    const s3 = getS3Client();
-    // Bun S3 client delete
-    await s3.delete(key);
-  };
-
-  const getJobStatus = () => {
-    const isRunning = !!backupJob && config.cronEnabled !== false;
-    let nextRun = null;
-    if (isRunning && backupJob) {
-      try {
-        const nextDate = backupJob.nextDate();
-        if (nextDate) {
-          // cron returns Luxon DateTime, convert to JS Date for consistent ISO string
-          nextRun = nextDate.toJSDate().toISOString();
-        }
-      } catch (e) {
-        console.error("Error getting next date", e);
-      }
-    }
-    return { isRunning, nextRun };
-  };
-
-  return app.use(html()).group("/backup", (app) =>
-    app
-      // API: Run Backup
-      .post(
-        "/api/run",
-        async ({ body, set }) => {
-          try {
-            const { timestamp } = body || {};
-            console.log(
-              `Starting backup of ${config.sourceDir} to ${config.bucket} with timestamp ${timestamp}`
-            );
-            await processDirectory(config.sourceDir, timestamp);
-            return {
-              status: "success",
-              message: "Backup completed successfully",
-              timestamp: new Date().toISOString(),
-            };
-          } catch (error) {
-            console.error("Backup failed:", error);
-            set.status = 500;
-            return { status: "error", message: error.message };
-          }
-        },
-        {
-          body: t.Optional(
-            t.Object({
-              timestamp: t.Optional(t.String()),
-            })
-          ),
-        }
-      )
-
-      // API: List Files
-      .get("/api/files", async ({ set }) => {
+    // Load saved config if exists
+    let savedConfig = {}
+    if (existsSync(configPath)) {
         try {
-          const files = await listRemoteFiles();
-          return {
-            files: files.map((f) => ({
-              key: f.Key,
-              size: f.Size,
-              lastModified: f.LastModified,
-            })),
-          };
-        } catch (error) {
-          set.status = 500;
-          return { status: "error", message: error.message };
+            // We use synchronous read here or just init with promise (but top level await is tricky in plugins depending on usage)
+            // For simplicity in this context, we'll rely on the fact that this runs once on startup.
+            // However, since we are in a function, we can't easily do async await at top level unless the plugin is async.
+            // Elysia plugins can be async.
+            // Using readFileSync for startup config loading to ensure it's ready.
+            const fileContent = readFileSync(configPath, 'utf-8')
+            savedConfig = JSON.parse(fileContent)
+            console.log('Loaded backup config from', configPath)
+        } catch (e) {
+            console.error('Failed to load backup config:', e)
         }
-      })
+    }
 
-      // API: Restore File
-      .post(
-        "/api/restore",
-        async ({ body, set }) => {
-          try {
-            const { key } = body;
-            if (!key) throw new Error("Key is required");
-            const localPath = await restoreFile(key);
-            return { status: "success", message: `Restored to ${localPath}` };
-          } catch (error) {
-            set.status = 500;
-            return { status: "error", message: error.message };
-          }
-        },
-        {
-          body: t.Object({
-            key: t.String(),
-          }),
+    let config = { ...initialConfig, ...savedConfig }
+    let backupJob = null
+
+    const getS3Client = () => {
+        // Debug config (masked)
+        console.log('S3 Config:', {
+            bucket: config.bucket,
+            endpoint: config.endpoint,
+            accessKeyId: config.accessKeyId ? '***' + config.accessKeyId.slice(-4) : 'missing',
+            hasSecret: !!config.secretAccessKey,
+        })
+
+        return new S3Client({
+            accessKeyId: config.accessKeyId,
+            secretAccessKey: config.secretAccessKey,
+            endpoint: config.endpoint,
+            bucket: config.bucket,
+            region: 'auto',
+            // R2 requires specific region handling or defaults.
+            // Bun S3 defaults to us-east-1 which is usually fine for R2 if endpoint is correct.
+        })
+    }
+
+    const uploadFile = async (filePath, rootDir, timestampPrefix) => {
+        const s3 = getS3Client()
+        const fileContent = await readFile(filePath)
+
+        const relativePath = relative(rootDir, filePath)
+        const dir = dirname(relativePath)
+        const filename = relativePath.split('/').pop() // or basename
+
+        // Format: YYYY-MM-DD_HH-mm-ss_filename.ext (or ISO if not provided)
+        const timestamp = timestampPrefix || new Date().toISOString()
+        const newFilename = `${timestamp}_${filename}`
+
+        // Reconstruct path with new filename
+        const finalPath = dir === '.' ? newFilename : join(dir, newFilename)
+
+        const key = config.prefix ? join(config.prefix, finalPath) : finalPath
+
+        console.log(`Uploading ${key}...`)
+
+        // Bun.s3 API: s3.write(key, data)
+        await s3.write(key, fileContent)
+    }
+
+    const processDirectory = async (dir, timestampPrefix) => {
+        const files = await readdir(dir)
+        for (const file of files) {
+            const fullPath = join(dir, file)
+            const stats = await stat(fullPath)
+            if (stats.isDirectory()) {
+                await processDirectory(fullPath, timestampPrefix)
+            } else {
+                // Filter by extension
+                const allowedExtensions = config.extensions || []
+                const hasExtension = allowedExtensions.some(ext => file.endsWith(ext))
+
+                // Skip files that look like backups to prevent recursion/duplication
+                // Matches: YYYY-MM-DD_HH-mm-ss_ OR ISOString_
+                const timestampRegex = /^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)_/
+                if (timestampRegex.test(file)) {
+                    console.log(`Skipping backup-like file: ${file}`)
+                    continue
+                }
+
+                if (allowedExtensions.length === 0 || hasExtension) {
+                    await uploadFile(fullPath, config.sourceDir, timestampPrefix)
+                }
+            }
         }
-      )
+    }
 
-      // API: Delete File
-      .post(
-        "/api/delete",
-        async ({ body, set }) => {
-          try {
-            const { key } = body;
-            if (!key) throw new Error("Key is required");
-            await deleteFile(key);
-            return { status: "success", message: `Deleted ${key}` };
-          } catch (error) {
-            set.status = 500;
-            return { status: "error", message: error.message };
-          }
-        },
-        {
-          body: t.Object({
-            key: t.String(),
-          }),
+    const setupCron = () => {
+        if (backupJob) {
+            backupJob.stop()
+            backupJob = null
         }
-      )
 
-      // API: Update Config
-      .post(
-        "/api/config",
-        async ({ body }) => {
-          // Handle extensions if passed as string
-          let newConfig = { ...body };
-          if (typeof newConfig.extensions === "string") {
-            newConfig.extensions = newConfig.extensions
-              .split(",")
-              .map((e) => e.trim())
-              .filter(Boolean);
-          }
-          config = { ...config, ...newConfig };
+        if (config.cronSchedule && config.cronEnabled !== false) {
+            console.log(`Setting up backup cron: ${config.cronSchedule}`)
+            try {
+                backupJob = new CronJob(
+                    config.cronSchedule,
+                    async () => {
+                        console.log('Running scheduled backup...')
+                        try {
+                            // Generate timestamp similar to manual run
+                            const now = new Date()
+                            const timestamp =
+                                now.getFullYear() +
+                                '-' +
+                                String(now.getMonth() + 1).padStart(2, '0') +
+                                '-' +
+                                String(now.getDate()).padStart(2, '0') +
+                                '_' +
+                                String(now.getHours()).padStart(2, '0') +
+                                '-' +
+                                String(now.getMinutes()).padStart(2, '0') +
+                                '-' +
+                                String(now.getSeconds()).padStart(2, '0')
 
-          // Persist config
-          try {
-            // Don't save secrets in plain text if possible, but for this simple tool we might have to
-            // or just save the non-env parts.
-            // For now, we save everything that overrides the defaults.
-            await writeFile(configPath, JSON.stringify(config, null, 2));
-          } catch (e) {
-            console.error("Failed to save config:", e);
-          }
-
-          setupCron(); // Restart cron with new config
-          return {
-            status: "success",
-            config: { ...config, secretAccessKey: "***" },
-            jobStatus: getJobStatus(),
-          };
-        },
-        {
-          body: t.Object({
-            bucket: t.String(),
-            endpoint: t.String(),
-            sourceDir: t.String(),
-            prefix: t.Optional(t.String()),
-            extensions: t.Optional(t.Union([t.Array(t.String()), t.String()])), // Allow array or comma-separated string
-            accessKeyId: t.String(),
-            secretAccessKey: t.String(),
-            cronSchedule: t.Optional(t.String()),
-            cronEnabled: t.Optional(t.Boolean()),
-          }),
+                            await processDirectory(config.sourceDir, timestamp)
+                            console.log('Scheduled backup completed')
+                        } catch (e) {
+                            console.error('Scheduled backup failed:', e)
+                        }
+                    },
+                    null,
+                    true // start
+                )
+            } catch (e) {
+                console.error('Invalid cron schedule:', e.message)
+            }
         }
-      )
+    }
 
-      // UI: Dashboard
-      .get("/", ({ set }) => {
-        set.headers["Content-Type"] = "text/html; charset=utf8";
-        const jobStatus = getJobStatus();
-        return `
+    // Initialize cron
+    setupCron()
+
+    const listRemoteFiles = async () => {
+        const s3 = getS3Client()
+        // Bun.s3 list API
+        // Returns a Promise that resolves to the list of files (or object with contents)
+        // Based on Bun docs/behavior, list() returns an array of S3File-like objects or similar structure
+        try {
+            const response = await s3.list({ prefix: config.prefix || '' })
+            // If response is array
+            if (Array.isArray(response)) {
+                return response.map(f => ({
+                    Key: f.key || f.name, // Handle potential property names
+                    Size: f.size,
+                    LastModified: f.lastModified,
+                }))
+            }
+            // If response has contents (AWS-like)
+            if (response.contents) {
+                return response.contents.map(f => ({
+                    Key: f.key,
+                    Size: f.size,
+                    LastModified: f.lastModified,
+                }))
+            }
+            console.log('Unknown list response structure:', response)
+            return []
+        } catch (e) {
+            console.error('Error listing files with Bun.s3:', e)
+            return []
+        }
+    }
+
+    const restoreFile = async key => {
+        const s3 = getS3Client()
+        const file = s3.file(key)
+
+        if (!(await file.exists())) {
+            throw new Error(`File ${key} not found in bucket`)
+        }
+
+        const arrayBuffer = await file.arrayBuffer()
+        const byteArray = new Uint8Array(arrayBuffer)
+
+        // Determine local path
+        // Remove prefix from key to get relative path
+        const relativePath = config.prefix ? key.replace(config.prefix, '') : key
+        // Clean leading slashes if any
+        const cleanRelative = relativePath.replace(/^[\/\\]/, '')
+
+        // Extract directory and filename
+        const dir = dirname(cleanRelative)
+        const filename = cleanRelative.split('/').pop()
+
+        // Strip timestamp prefix if present to restore original filename
+        // Matches: YYYY-MM-DD_HH-mm-ss_ OR ISOString_
+        const timestampRegex = /^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)_/
+        const originalFilename = filename.replace(timestampRegex, '')
+
+        const finalLocalRelativePath = dir === '.' ? originalFilename : join(dir, originalFilename)
+        const localPath = join(config.sourceDir, finalLocalRelativePath)
+
+        // Ensure directory exists
+        await mkdir(dirname(localPath), { recursive: true })
+        await writeFile(localPath, byteArray)
+        return localPath
+    }
+
+    const deleteFile = async key => {
+        const s3 = getS3Client()
+        // Bun S3 client delete
+        await s3.delete(key)
+    }
+
+    const getJobStatus = () => {
+        const isRunning = !!backupJob && config.cronEnabled !== false
+        let nextRun = null
+        if (isRunning && backupJob) {
+            try {
+                const nextDate = backupJob.nextDate()
+                if (nextDate) {
+                    // cron returns Luxon DateTime, convert to JS Date for consistent ISO string
+                    nextRun = nextDate.toJSDate().toISOString()
+                }
+            } catch (e) {
+                console.error('Error getting next date', e)
+            }
+        }
+        return { isRunning, nextRun }
+    }
+
+    return app.use(html()).group('/backup', app => {
+        // Authentication Middleware
+        const authMiddleware = context => {
+            // Only bypass auth if no credentials are configured at all
+            if (!config.auth || !config.auth.username || !config.auth.password) {
+                return
+            }
+
+            const path = context.path
+
+            // Allow access to login page and auth endpoints without authentication
+            if (path === '/backup/login' || path === '/backup/auth/login' || path === '/backup/auth/logout') {
+                return
+            }
+
+            // Check session cookie
+            const cookies = context.headers.cookie || ''
+            const sessionMatch = cookies.match(/backup-session=([^;]+)/)
+            const sessionToken = sessionMatch ? sessionMatch[1] : null
+
+            const session = getSession(sessionToken)
+
+            if (!session) {
+                // Redirect to login page
+                context.set.status = 302
+                context.set.headers['Location'] = '/backup/login'
+                return new Response('Redirecting to login', {
+                    status: 302,
+                    headers: { Location: '/backup/login' },
+                })
+            }
+        }
+
+        return (
+            app
+                .onBeforeHandle(authMiddleware)
+
+                // AUTH: Login Page
+                .get('/login', ({ set }) => {
+                    // If no auth credentials configured, redirect to dashboard
+                    if (!config.auth || !config.auth.username || !config.auth.password) {
+                        set.status = 302
+                        set.headers['Location'] = '/backup'
+                        return
+                    }
+
+                    set.headers['Content-Type'] = 'text/html; charset=utf8'
+                    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Backup Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Montserrat', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-6 antialiased">
+    <div class="w-full max-w-md" x-data="loginApp()">
+        <!-- Login Card -->
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.08)] overflow-hidden">
+            <!-- Header -->
+            <div class="p-10 text-center border-b border-gray-100">
+                <div class="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="shield-check" class="w-8 h-8 text-white"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">Backup Manager</h1>
+                <p class="text-sm text-gray-500">Access Control Panel</p>
+            </div>
+
+            <!-- Form -->
+            <div class="p-10">
+                <form @submit.prevent="login" class="space-y-6">
+                    <!-- Error Message -->
+                    <div x-show="error" x-cloak class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="alert-circle" class="w-5 h-5 text-red-600"></i>
+                            <span class="text-sm text-red-800 font-medium" x-text="error"></span>
+                        </div>
+                    </div>
+
+                    <!-- Username -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Username</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <i data-lucide="user" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                            <input 
+                                type="text" 
+                                x-model="username"
+                                required
+                                class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-12 pr-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium"
+                                placeholder="Enter your username"
+                                autofocus
+                            >
+                        </div>
+                    </div>
+
+                    <!-- Password -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <i data-lucide="lock" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                            <input 
+                                type="password" 
+                                x-model="password"
+                                required
+                                class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-12 pr-4 py-3 text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all font-medium"
+                                placeholder="Enter your password"
+                            >
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button 
+                        type="submit"
+                        :disabled="loading"
+                        class="w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
+                    >
+                        <span x-show="!loading" class="flex items-center gap-2">
+                            <span>Sign In</span>
+                            <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                        </span>
+                        <span x-show="loading" class="flex items-center gap-2">
+                            <i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>
+                            <span>Authenticating...</span>
+                        </span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-6 text-sm text-gray-500">
+            <i data-lucide="info" class="w-4 h-4 inline-block mr-1"></i>
+            Secure connection required for production use
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('loginApp', () => ({
+                username: '',
+                password: '',
+                loading: false,
+                error: '',
+
+                init() {
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                async login() {
+                    this.loading = true;
+                    this.error = '';
+
+                    try {
+                        const response = await fetch('/backup/auth/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                username: this.username,
+                                password: this.password
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok && data.status === 'success') {
+                            // Redirect to dashboard
+                            window.location.href = '/backup';
+                        } else {
+                            this.error = data.message || 'Invalid credentials';
+                            this.$nextTick(() => lucide.createIcons());
+                        }
+                    } catch (err) {
+                        this.error = 'Connection failed. Please try again.';
+                        this.$nextTick(() => lucide.createIcons());
+                    } finally {
+                        this.loading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                }
+            }));
+        });
+    </script>
+</body>
+</html>
+`
+                })
+
+                // AUTH: Login Endpoint
+                .post(
+                    '/auth/login',
+                    async ({ body, set }) => {
+                        // Check if auth credentials are configured
+                        if (!config.auth || !config.auth.username || !config.auth.password) {
+                            set.status = 403
+                            return {
+                                status: 'error',
+                                message: 'Authentication is not configured',
+                            }
+                        }
+
+                        const { username, password } = body
+
+                        // Validate credentials
+                        if (username === config.auth.username && password === config.auth.password) {
+                            // Create session
+                            const sessionDuration = config.auth.sessionDuration || 24 * 60 * 60 * 1000 // 24h default
+                            const { token, expiresAt } = createSession(username, sessionDuration)
+
+                            // Set cookie
+                            const expiresDate = new Date(expiresAt)
+                            set.headers['Set-Cookie'] = `backup-session=${token}; Path=/backup; HttpOnly; SameSite=Lax; Expires=${expiresDate.toUTCString()}`
+
+                            return { status: 'success', message: 'Login successful' }
+                        } else {
+                            set.status = 401
+                            return { status: 'error', message: 'Invalid username or password' }
+                        }
+                    },
+                    {
+                        body: t.Object({
+                            username: t.String(),
+                            password: t.String(),
+                        }),
+                    }
+                )
+
+                // AUTH: Logout Endpoint
+                .post('/auth/logout', ({ headers, set }) => {
+                    const cookies = headers.cookie || ''
+                    const sessionMatch = cookies.match(/backup-session=([^;]+)/)
+                    const sessionToken = sessionMatch ? sessionMatch[1] : null
+
+                    if (sessionToken) {
+                        deleteSession(sessionToken)
+                    }
+
+                    // Clear cookie
+                    set.headers['Set-Cookie'] = `backup-session=; Path=/backup; HttpOnly; SameSite=Lax; Max-Age=0`
+
+                    return { status: 'success', message: 'Logged out successfully' }
+                })
+
+                // API: Run Backup
+                .post(
+                    '/api/run',
+                    async ({ body, set }) => {
+                        try {
+                            const { timestamp } = body || {}
+                            console.log(`Starting backup of ${config.sourceDir} to ${config.bucket} with timestamp ${timestamp}`)
+                            await processDirectory(config.sourceDir, timestamp)
+                            return {
+                                status: 'success',
+                                message: 'Backup completed successfully',
+                                timestamp: new Date().toISOString(),
+                            }
+                        } catch (error) {
+                            console.error('Backup failed:', error)
+                            set.status = 500
+                            return { status: 'error', message: error.message }
+                        }
+                    },
+                    {
+                        body: t.Optional(
+                            t.Object({
+                                timestamp: t.Optional(t.String()),
+                            })
+                        ),
+                    }
+                )
+
+                // API: List Files
+                .get('/api/files', async ({ set }) => {
+                    try {
+                        const files = await listRemoteFiles()
+                        return {
+                            files: files.map(f => ({
+                                key: f.Key,
+                                size: f.Size,
+                                lastModified: f.LastModified,
+                            })),
+                        }
+                    } catch (error) {
+                        set.status = 500
+                        return { status: 'error', message: error.message }
+                    }
+                })
+
+                // API: Restore File
+                .post(
+                    '/api/restore',
+                    async ({ body, set }) => {
+                        try {
+                            const { key } = body
+                            if (!key) throw new Error('Key is required')
+                            const localPath = await restoreFile(key)
+                            return { status: 'success', message: `Restored to ${localPath}` }
+                        } catch (error) {
+                            set.status = 500
+                            return { status: 'error', message: error.message }
+                        }
+                    },
+                    {
+                        body: t.Object({
+                            key: t.String(),
+                        }),
+                    }
+                )
+
+                // API: Delete File
+                .post(
+                    '/api/delete',
+                    async ({ body, set }) => {
+                        try {
+                            const { key } = body
+                            if (!key) throw new Error('Key is required')
+                            await deleteFile(key)
+                            return { status: 'success', message: `Deleted ${key}` }
+                        } catch (error) {
+                            set.status = 500
+                            return { status: 'error', message: error.message }
+                        }
+                    },
+                    {
+                        body: t.Object({
+                            key: t.String(),
+                        }),
+                    }
+                )
+
+                // API: Update Config
+                .post(
+                    '/api/config',
+                    async ({ body }) => {
+                        // Handle extensions if passed as string
+                        let newConfig = { ...body }
+                        if (typeof newConfig.extensions === 'string') {
+                            newConfig.extensions = newConfig.extensions
+                                .split(',')
+                                .map(e => e.trim())
+                                .filter(Boolean)
+                        }
+                        config = { ...config, ...newConfig }
+
+                        // Persist config
+                        try {
+                            // Don't save secrets in plain text if possible, but for this simple tool we might have to
+                            // or just save the non-env parts.
+                            // For now, we save everything that overrides the defaults.
+                            await writeFile(configPath, JSON.stringify(config, null, 2))
+                        } catch (e) {
+                            console.error('Failed to save config:', e)
+                        }
+
+                        setupCron() // Restart cron with new config
+                        return {
+                            status: 'success',
+                            config: { ...config, secretAccessKey: '***' },
+                            jobStatus: getJobStatus(),
+                        }
+                    },
+                    {
+                        body: t.Object({
+                            bucket: t.String(),
+                            endpoint: t.String(),
+                            sourceDir: t.String(),
+                            prefix: t.Optional(t.String()),
+                            extensions: t.Optional(t.Union([t.Array(t.String()), t.String()])), // Allow array or comma-separated string
+                            accessKeyId: t.String(),
+                            secretAccessKey: t.String(),
+                            cronSchedule: t.Optional(t.String()),
+                            cronEnabled: t.Optional(t.Boolean()),
+                        }),
+                    }
+                )
+
+                // UI: Dashboard
+                .get('/', ({ set }) => {
+                    set.headers['Content-Type'] = 'text/html; charset=utf8'
+                    const jobStatus = getJobStatus()
+                    return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -455,8 +753,9 @@ export const r2Backup = (initialConfig) => (app) => {
                 </h1>
             </div>
             
-            <!-- Tabs -->
-            <div class="flex p-1 bg-gray-200/50 rounded-xl">
+            <div class="flex items-center gap-4">
+                <!-- Tabs -->
+                <div class="flex p-1 bg-gray-200/50 rounded-xl">
                 <button @click="activeTab = 'dashboard'; $nextTick(() => lucide.createIcons())" 
                     :class="activeTab === 'dashboard' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
                     class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2">
@@ -476,6 +775,19 @@ export const r2Backup = (initialConfig) => (app) => {
                     Settings
                 </button>
             </div>
+
+            ${
+                config.auth && config.auth.enabled
+                    ? `
+            <!-- Logout Button -->
+            <button @click="logout" class="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-sm rounded-lg transition-all">
+                <i data-lucide="log-out" class="w-4 h-4"></i>
+                <span>Logout</span>
+            </button>
+            `
+                    : ''
+            }
+        </div>
         </div>
 
         <!-- Dashboard Tab -->
@@ -981,13 +1293,24 @@ export const r2Backup = (initialConfig) => (app) => {
                     } catch (err) {
                         this.addLog('Failed to save config: ' + err.message, 'error')
                     }
+                },
+
+                async logout() {
+                    try {
+                        await fetch('/backup/auth/logout', { method: 'POST' });
+                        window.location.href = '/backup/login';
+                    } catch (err) {
+                        console.error('Logout failed:', err);
+                        window.location.href = '/backup/login';
+                    }
                 }
             }
         }
     </script>
 </body>
 </html>
-                `;
-      })
-  );
-};
+                `
+                })
+        )
+    })
+}

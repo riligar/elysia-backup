@@ -5,7 +5,7 @@
  */
 
 import { Elysia } from 'elysia'
-import { r2Backup } from '@riligar/elysia-backup'
+import { r2Backup } from '../src/index.js'
 import { readFileSync, writeFileSync } from 'fs'
 
 // JSON file paths
@@ -29,6 +29,11 @@ const app = new Elysia()
             extensions: ['.json'],
             cronSchedule: '0 * * * *',
             cronEnabled: false,
+            // Authentication - provide username and password to enable auth
+            auth: {
+                username: process.env.BACKUP_USERNAME,
+                password: process.env.BACKUP_PASSWORD,
+            },
         })
     )
     .get(
