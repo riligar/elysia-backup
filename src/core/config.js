@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 
 /**
  * Load configuration from a JSON file
@@ -43,7 +44,8 @@ export const saveConfig = async (configPath, config) => {
  * @returns {Object} Configuration manager with get/set/save methods
  */
 export const createConfigManager = initialConfig => {
-    const configPath = initialConfig.configPath || './backup-config.json'
+    // If configPath not specified, save config alongside sourceDir for cloud deployments
+    const configPath = initialConfig.configPath || join(dirname(initialConfig.sourceDir), 'backup-config.json')
     const savedConfig = loadConfig(configPath)
 
     let config = { ...initialConfig, ...savedConfig }

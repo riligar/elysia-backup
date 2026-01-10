@@ -41,7 +41,6 @@ const app = new Elysia()
     .use(
         r2Backup({
             sourceDir: './data',
-            configPath: './backup-config.json',
         })
     )
     .listen(3000)
@@ -60,10 +59,10 @@ On first run, you'll be guided through an onboarding wizard to configure:
 
 ### Plugin Options
 
-| Option       | Type   | Required | Description                                                   |
-| ------------ | ------ | -------- | ------------------------------------------------------------- |
-| `sourceDir`  | string | ✅       | Local directory to backup                                     |
-| `configPath` | string | ❌       | Path to save runtime config (default: `./backup-config.json`) |
+| Option       | Type   | Required | Description                                                         |
+| ------------ | ------ | -------- | ------------------------------------------------------------------- |
+| `sourceDir`  | string | ✅       | Local directory to backup                                           |
+| `configPath` | string | ❌       | Path to save runtime config (default: same directory as `sourceDir`) |
 
 ### Runtime Configuration (via UI or backup-config.json)
 
@@ -118,6 +117,27 @@ The plugin adds the following routes under `/backup`:
 | POST   | `/backup/api/totp/generate` | Generate new TOTP secret & QR |
 | POST   | `/backup/api/totp/verify`   | Verify and enable 2FA         |
 | POST   | `/backup/api/totp/disable`  | Disable 2FA                   |
+
+## ☁️ Cloud Deployment (Fly.io, Railway, etc.)
+
+For cloud platforms with ephemeral file systems, mount a persistent volume at your `sourceDir` path. The configuration file will be automatically saved alongside your data:
+
+```javascript
+import { Elysia } from 'elysia'
+import { r2Backup } from '@riligar/elysia-backup'
+
+const app = new Elysia()
+    .use(
+        r2Backup({
+            // Mount your persistent volume here
+            // Config will be saved at /data/backup-config.json
+            sourceDir: '/data',
+        })
+    )
+    .listen(3000)
+```
+
+This ensures both your backup data and configuration persist across deployments and restarts.
 
 ## 🔐 Security Features
 

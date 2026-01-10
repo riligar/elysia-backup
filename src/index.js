@@ -5,6 +5,7 @@ import { authenticator } from 'otplib'
 import QRCode from 'qrcode'
 import { writeFile } from 'node:fs/promises'
 import { readFileSync, existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 // Helper to return HTML responses with proper Content-Type
 const htmlResponse = content =>
     new Response(content, {
@@ -36,11 +37,12 @@ const sessionManager = createSessionManager()
  * @param {string} [config.prefix] - Optional prefix for S3 keys (e.g. 'backups/')
  * @param {string} [config.cronSchedule] - Cron schedule expression
  * @param {boolean} [config.cronEnabled] - Whether the cron schedule is enabled
- * @param {string} [config.configPath] - Path to save runtime configuration (default: './backup-config.json')
+ * @param {string} [config.configPath] - Path to save runtime configuration (default: same directory as sourceDir)
  */
 export const r2Backup = initialConfig => app => {
     // State to hold runtime configuration (allows UI updates)
-    const configPath = initialConfig.configPath || './backup-config.json'
+    // If configPath not specified, save config alongside sourceDir for cloud deployments
+    const configPath = initialConfig.configPath || join(dirname(initialConfig.sourceDir), 'backup-config.json')
 
     // Load saved config if exists
     let savedConfig = {}
