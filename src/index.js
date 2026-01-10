@@ -42,7 +42,7 @@ const sessionManager = createSessionManager()
 export const r2Backup = initialConfig => app => {
     // State to hold runtime configuration (allows UI updates)
     // If configPath not specified, save config alongside sourceDir for cloud deployments
-    const configPath = join(initialConfig.configPath || dirname(initialConfig.sourceDir), 'backup-config.json')
+    const configPath = join(initialConfig.configPath || initialConfig.sourceDir, 'backup-config.json')
 
     // Load saved config if exists
     let savedConfig = {}
