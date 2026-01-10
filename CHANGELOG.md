@@ -1,3 +1,10 @@
+## [1.10.1](https://github.com/riligar-solutions/elysia-backup/compare/v1.10.0...v1.10.1) (2026-01-10)
+
+
+### Bug Fixes
+
+* corrige o caminho padrão para o arquivo de configuração de backup ([e5b5612](https://github.com/riligar-solutions/elysia-backup/commit/e5b56125ff17dd80ca65df62d1814dcbfa666ce7))
+
 # [1.10.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.9.0...v1.10.0) (2026-01-10)
 
 
