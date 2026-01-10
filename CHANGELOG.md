@@ -1,3 +1,10 @@
+## [1.10.2](https://github.com/riligar-solutions/elysia-backup/compare/v1.10.1...v1.10.2) (2026-01-10)
+
+
+### Bug Fixes
+
+* use sourceDir directly when configPath is not specified ([5749489](https://github.com/riligar-solutions/elysia-backup/commit/5749489b8f40f3b3f485263158672004dece8db4))
+
 ## [1.10.1](https://github.com/riligar-solutions/elysia-backup/compare/v1.10.0...v1.10.1) (2026-01-10)
 
 
