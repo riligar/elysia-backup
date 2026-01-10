@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.9.0...v1.10.0) (2026-01-10)
+
+
+### Features
+
+* Persist config file alongside sourceDir by default ([c46d962](https://github.com/riligar-solutions/elysia-backup/commit/c46d96227dce05bca022cf6f10a4e1b5892c5c81))
+
 # [1.9.0](https://github.com/riligar-solutions/elysia-backup/compare/v1.8.2...v1.9.0) (2025-12-20)
 
 
